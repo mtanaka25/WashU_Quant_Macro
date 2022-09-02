@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Sep  1 10:51:54 2022
+mtQuantMacroHW1.py
 
-@author: tanapanda
+is the python class foe the assignment #1 of Quantitative Macroeconomic Theory
+at Washington University in St. Louis.
+
+...............................................................................
+Create Sep 1st, 2022 (Masaki Tanaka, Washington University in St. Louis)
+
 """
 import pandas as pd
 import numpy as np
@@ -312,7 +317,7 @@ class Det_NCG_Mdl:
         
         for i in range(len(k_path2plot)):
             if i < len(k_path2plot) - 1:
-                ax[0].plot(x, k_path2plot[i], label='Iter {:,}'.format(iter2plot[i]))
+                ax[0].plot(x, k_path2plot[i], label='Iteration {:,}'.format(iter2plot[i]))
             else:
                 ax[0].plot(x, k_path2plot[i], label='Optimal path')               
         ax[0].set_title('Dynamics of capital stock')
@@ -320,12 +325,12 @@ class Det_NCG_Mdl:
         
         for i in range(len(l_path2plot)):
             if i < len(l_path2plot) - 1:
-                ax[1].plot(x, l_path2plot[i], label='Iter {:,}'.format(iter2plot[i]))
+                ax[1].plot(x, l_path2plot[i], label='Iteration {:,}'.format(iter2plot[i]))
             else:
                 ax[1].plot(x, l_path2plot[i], label='Optimal path')               
         ax[1].set_title('Dynamics of labor input')
         ax[1].legend(frameon=False)
-        plt.savefig(GraphicName, format='png')
+        plt.savefig(GraphicName)
                 
         # Store the results as attributes
         self.k_path      = k_path
