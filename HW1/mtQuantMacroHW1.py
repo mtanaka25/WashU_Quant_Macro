@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from tabulate import tabulate
+from copy import deepcopy
 
 class Det_NCG_Mdl:
     def __init__(self,
@@ -26,7 +27,8 @@ class Det_NCG_Mdl:
         self.delta = delta
         self.A     = A
         self.k_0    = k_0
-        
+
+
     def SteadyState(self, PrintResult = True):
         beta  = self.beta
         theta = self.theta
@@ -62,6 +64,7 @@ class Det_NCG_Mdl:
                   "\n"
                   )
 
+
     def Calc_l(self, k_t, isQ1b = False):
         theta = self.theta
         A     = self.A
@@ -78,15 +81,17 @@ class Det_NCG_Mdl:
                   "\n  l_0 = {:.4f}".format(l_t)
                   )
         return l_t
-        
-    def DoBisection_k1_l1(self, 
-                          k_2 = 0.82 , # k in the next period
-                          kmin = 0.1, # lower starting point for bijection
-                          kmax = 3, # upper starting point for bijection
-                          tol  = 10E-5, # torelance level in bijection
-                          MaxIter = 100, # Maximum number of iterations
-                          ShowProgress = True,
-                          MeasureElapsedTime = True):
+    
+    
+    def DoBisection(self,
+                    k_t, # k at the current period
+                    k_tp2, # k at the day after tomorrow
+                    kmin = 0.1, # lower starting point for bijection
+                    kmax = 2, # upper starting point for bijection
+                    tol  = 10E-5, # torelance level in bijection
+                    MaxIter = 100, # Maximum number of iterations
+                    ShowProgress = True,
+                    MeasureElapsedTime = True):
         print(\
               "\n",
               "\n **********************************",\
@@ -96,20 +101,21 @@ class Det_NCG_Mdl:
               "\n" 
               )
 
-        k_0 = self.k_0
-        l_0 = self.l_0
-        k_a = kmin
-        l_a = self.Calc_l(k_a)
-        k_b = kmax
-        l_b = self.Calc_l(k_b)
+        l_t = self.Calc_l(k_t)
         
-        f_a = self.EvalEulerEq(k_0, l_0, k_a, l_a, k_2)
-        f_b = self.EvalEulerEq(k_0, l_0, k_b, l_b, k_2)
+        k_a = kmin # lower starting point for bijection
+        l_a = self.Calc_l(k_a) # corresponding labor input
         
-        if f_a * f_b >= 0:
+        k_b = kmax # upper starting point for bijection
+        l_b = self.Calc_l(k_b) # corresponding labor input
+        
+        f_a = self.EvalEulerEq(k_t, l_t, k_a, l_a, k_tp2) # residual in Euler eq when k_a is used
+        f_b = self.EvalEulerEq(k_t, l_t, k_b, l_b, k_tp2) # residual in Euler eq when k_b is used
+        
+        if f_a * f_b > 0: # If the initial function values have the same sign, bisection cannot be applied
             raise ValueError("The starting points do not have the opposite signs. Change k_min and k_max and try again.")
         
-        diff_i = 1.000
+        diff_i = min(abs(f_a), abs(f_b))
         i      = 0
         ProgressTable = []
         
@@ -119,25 +125,26 @@ class Det_NCG_Mdl:
         while diff_i > tol and i < MaxIter:
             k_c = (k_a + k_b)/2
             l_c = self.Calc_l(k_c)
-            f_c = self.EvalEulerEq(k_0, l_0, k_c, l_c, k_2)
+            f_c = self.EvalEulerEq(k_t, l_t, k_c, l_c, k_tp2)
             
             ProgressTable.append([i, k_a, k_b, k_c, f_c])
             
-            if f_a * f_c > 0:
+            if f_a * f_c > 0: # If f_a and f_c have the same sign, replace k_a with k_c
                 k_a = k_c
                 l_a = l_c
                 f_a = f_c
-            else:
+            else:             # Otherwise, replace k_b with k_c
                 k_b = k_c
                 l_b = l_c
                 f_b = f_c              
 
             diff_i = abs(f_c)
             i += 1
-
-        print(tabulate(ProgressTable, headers=['Iter', 'k_a', 'k_b', 'k_c', 'Diff']))
+            
+        if ShowProgress:
+            print(tabulate(ProgressTable, headers=['Iter', 'k_a', 'k_b', 'k_c', 'Diff']))
         
-        if diff_i > tol:
+        if diff_i > tol: # If difference is still greater than the tolerance level, raise an exception
             raise Exception("Bisection failed to find the solution within MaxIter.")
         
         if MeasureElapsedTime:
@@ -148,14 +155,82 @@ class Det_NCG_Mdl:
         
         print(\
               "\n",
-              "\n  k_1 = {:.4f}".format(k_c),\
-              "\n  l_1 = {:.4f}".format(l_c),\
+              "\n  k_tp1 = {:.4f}".format(k_c),\
+              "\n  l_tp1 = {:.4f}".format(l_c),\
               "\n"
               )
 
         return k_c, l_c
     
+    def DoNewton(self,
+                 k_t  , # k in the current period     
+                 k_tp2, # k on the day after tomorrow
+                 k_init   = 0.82,  # starting point for Newton method
+                 tol      = 10E-5, # torelance level in Newton method
+                 MaxIter  = 100,   # Maximum number of iterations
+                 Stepsize = 0.01,  # Stepsize for numerical differenciation
+                 ShowProgress = True,
+                 MeasureElapsedTime = True):
+        print(\
+              "\n",
+              "\n **********************************",\
+              "\n      Question 1. (b)-iii           ",\
+              "\n **********************************",\
+              "\nStarting (quasi-)Newton method to find k_1 and l_1..."
+              "\n" 
+              )
+        l_t = self.Calc_l(k_t)
+        
+        k_tp1  = k_init
+        
+        diff_i = 1
+        i      = 0
+        ProgressTable = []
+        
+        if MeasureElapsedTime:
+            tic = time.perf_counter() # stopwatch starts
             
+        while diff_i > tol and i < MaxIter:
+            
+            l_tp1 = self.Calc_l(k_tp1)
+            
+            f  = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2)
+            df = self.NumericalDiffEuler(k_t, l_t, k_tp1, l_tp1, k_tp2, Stepsize)
+
+            k_tp1_new = k_tp1 - f/df
+            l_tp1_new = self.Calc_l(k_tp1_new)
+            f_new     = self.EvalEulerEq(k_t, l_t, k_tp1_new, l_tp1_new, k_tp2)
+            
+            diff_i = abs(f_new)
+            
+            k_tp1 = k_tp1_new
+            l_tp1 = l_tp1_new
+            
+            ProgressTable.append([i, k_tp1_new, f_new])
+            i += 1
+          
+        if ShowProgress:
+            print(tabulate(ProgressTable, headers=['Iter', 'k_t', 'Diff']))
+        
+        if diff_i > tol: # If difference is still greater than the tolerance level, raise an exception
+            raise Exception("Bisection failed to find the solution within MaxIter.")
+        
+                
+        if MeasureElapsedTime:
+            toc = time.perf_counter() # stopwatch stops
+            ElapsedTime = toc - tic
+            print("\n",
+                  "Elapsed time: {:.4f} seconds".format(ElapsedTime))
+
+        print(\
+              "\n",
+              "\n  k_t+1 = {:.4f}".format(k_tp1),\
+              "\n  l_t+1 = {:.4f}".format(l_tp1),\
+              "\n"
+              )
+        
+        return k_tp1, l_tp1
+         
     def EvalEulerEq(self, k_t, l_t, k_tp1, l_tp1, k_tp2):
         beta  = self.beta
         A     = self.A
@@ -185,5 +260,47 @@ class Det_NCG_Mdl:
         return lmbd_t
     
 
-    
+    def NumericalDiffEuler(self, k_t, l_t, k_tp1, l_tp1, k_tp2, Stepsize = 0.01):
+        k_bar_tp1 = k_tp1 + Stepsize
+        l_bar_tp1 = self.Calc_l(k_bar_tp1)
         
+        f     = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2)
+        f_bar = self.EvalEulerEq(k_t, l_t, k_bar_tp1, l_bar_tp1, k_tp2)
+            
+        df = (f_bar - f)/Stepsize 
+           
+        return df
+        
+    def DoExtendedPath(self, K_path_init, tol = 10E-5, MaxIter = 500):
+        k_min = 0.1
+        k_max = self.k_ss * 1.1
+        
+        
+        diff_i = 1
+        i      = 0
+        
+        K_path_old = K_path_init
+        
+        while diff_i > tol and i < MaxIter:
+            K_path_new = deepcopy(K_path_old)
+            
+            for t in range(len(K_path_init)-2):
+                k_t   = K_path_new[t]
+                k_tp2 = K_path_new[t+2]
+                
+                k_t, _ = self.DoBisection(k_t = k_t, 
+                                          k_tp2 = k_tp2, 
+                                          kmin = k_min,
+                                          kmax = k_max,
+                                          ShowProgress = False,
+                                          MeasureElapsedTime = False)
+                K_path_new[t + 1] = deepcopy(k_t)
+            
+            diff_i = [(k_new - k_old)**2 for (k_new, k_old) in zip(K_path_new, K_path_old)]
+            diff_i = sum(diff_i)**0.5
+            K_path_old = deepcopy(K_path_new)
+            i += 1
+        
+        return K_path_new
+                
+            
