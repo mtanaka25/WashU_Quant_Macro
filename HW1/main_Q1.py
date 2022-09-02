@@ -6,6 +6,16 @@ Created on Thu Sep  1 10:51:54 2022
 @author: tanapanda
 """
 
-from mtQuantMacroHW1 import Det_Neoclassical_Growth_Mdl
+from mtQuantMacroHW1 import Det_NCG_Mdl
 
-model1 = Det_Neoclassical_Growth_Mdl()
+# =========================================================================
+# 1.
+# =========================================================================
+
+# Generate a NCG model instance
+model1 = Det_NCG_Mdl()
+
+# (a) Calculate the steady state
+model1.SteadyState()
+
+# (b)
