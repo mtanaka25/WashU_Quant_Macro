@@ -31,6 +31,9 @@ k_1, l_1 = model1.DoBisection(k_t = model1.k_0, k_tp2 = k_2)
 k_1_Newton, l_1_Newton = model1.DoNewton(k_t = model1.k_0, k_tp2 = k_2)
 
 
-K_path    = [model1.k_0 + (model1.k_ss - model1.k_0) * i / 150 for i in range(150)]
+# (c) Implement extended path to derive the dynamics of k 
+k_path_guess = [model1.k_0 + (model1.k_ss - model1.k_0) * i / 151 for i in range(151)]
+model1.DoExtendedPath(k_path_guess)
 
-k_path_new = model1.DoExtendedPath(K_path)
+# (d) Calculate the other variables' dynamics 
+model1.CalcDynamics(model1.k_path)

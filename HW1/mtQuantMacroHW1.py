@@ -91,15 +91,17 @@ class Det_NCG_Mdl:
                     tol  = 10E-5, # torelance level in bijection
                     MaxIter = 100, # Maximum number of iterations
                     ShowProgress = True,
-                    MeasureElapsedTime = True):
-        print(\
-              "\n",
-              "\n **********************************",\
-              "\n      Question 1. (b)-ii           ",\
-              "\n **********************************",\
-              "\nStarting bisection to find k_1 and l_1..."
-              "\n" 
-              )
+                    MeasureElapsedTime = True,
+                    Silent = False):
+        if not Silent:
+            print(\
+                  "\n",
+                  "\n **********************************",\
+                  "\n      Question 1. (b)-ii           ",\
+                  "\n **********************************",\
+                  "\nStarting bisection to find k_1 and l_1..."
+                  "\n" 
+                   )
 
         l_t = self.Calc_l(k_t)
         
@@ -141,24 +143,25 @@ class Det_NCG_Mdl:
             diff_i = abs(f_c)
             i += 1
             
-        if ShowProgress:
+        if ShowProgress and not Silent:
             print(tabulate(ProgressTable, headers=['Iter', 'k_a', 'k_b', 'k_c', 'Diff']))
         
         if diff_i > tol: # If difference is still greater than the tolerance level, raise an exception
             raise Exception("Bisection failed to find the solution within MaxIter.")
         
-        if MeasureElapsedTime:
+        if MeasureElapsedTime and not Silent:
             toc = time.perf_counter() # stopwatch stops
             ElapsedTime = toc - tic
             print("\n",
                   "Elapsed time: {:.4f} seconds".format(ElapsedTime))
         
-        print(\
-              "\n",
-              "\n  k_tp1 = {:.4f}".format(k_c),\
-              "\n  l_tp1 = {:.4f}".format(l_c),\
-              "\n"
-              )
+        if not Silent:
+            print(\
+                  "\n",
+                  "\n  k_tp1 = {:.4f}".format(k_c),\
+                  "\n  l_tp1 = {:.4f}".format(l_c),\
+                  "\n"
+                  )
 
         return k_c, l_c
     
@@ -170,15 +173,17 @@ class Det_NCG_Mdl:
                  MaxIter  = 100,   # Maximum number of iterations
                  Stepsize = 0.01,  # Stepsize for numerical differenciation
                  ShowProgress = True,
-                 MeasureElapsedTime = True):
-        print(\
-              "\n",
-              "\n **********************************",\
-              "\n      Question 1. (b)-iii           ",\
-              "\n **********************************",\
-              "\nStarting (quasi-)Newton method to find k_1 and l_1..."
-              "\n" 
-              )
+                 MeasureElapsedTime = True,
+                 Silent = False):
+        if not Silent:
+            print(\
+                  "\n",
+                  "\n **********************************",\
+                  "\n      Question 1. (b)-iii           ",\
+                  "\n **********************************",\
+                  "\nStarting (quasi-)Newton method to find k_1 and l_1..."
+                  "\n" 
+                  )
         l_t = self.Calc_l(k_t)
         
         k_tp1  = k_init
@@ -209,25 +214,26 @@ class Det_NCG_Mdl:
             ProgressTable.append([i, k_tp1_new, f_new])
             i += 1
           
-        if ShowProgress:
+        if ShowProgress and not Silent:
             print(tabulate(ProgressTable, headers=['Iter', 'k_t', 'Diff']))
         
         if diff_i > tol: # If difference is still greater than the tolerance level, raise an exception
             raise Exception("Bisection failed to find the solution within MaxIter.")
         
                 
-        if MeasureElapsedTime:
+        if MeasureElapsedTime and not Silent:
             toc = time.perf_counter() # stopwatch stops
             ElapsedTime = toc - tic
             print("\n",
                   "Elapsed time: {:.4f} seconds".format(ElapsedTime))
 
-        print(\
-              "\n",
-              "\n  k_t+1 = {:.4f}".format(k_tp1),\
-              "\n  l_t+1 = {:.4f}".format(l_tp1),\
-              "\n"
-              )
+        if not Silent:
+            print(\
+                  "\n",
+                  "\n  k_t+1 = {:.4f}".format(k_tp1),\
+                  "\n  l_t+1 = {:.4f}".format(l_tp1),\
+                  "\n"
+                  )
         
         return k_tp1, l_tp1
          
@@ -271,7 +277,7 @@ class Det_NCG_Mdl:
            
         return df
         
-    def DoExtendedPath(self, K_path_init, tol = 10E-5, MaxIter = 500):
+    def DoExtendedPath(self, k_path_init, tol = 10E-10, MaxIter = 500):
         k_min = 0.1
         k_max = self.k_ss * 1.1
         
@@ -279,28 +285,59 @@ class Det_NCG_Mdl:
         diff_i = 1
         i      = 0
         
-        K_path_old = K_path_init
+        k_path_old = k_path_init
         
         while diff_i > tol and i < MaxIter:
-            K_path_new = deepcopy(K_path_old)
+            k_path_new = deepcopy(k_path_old)
             
-            for t in range(len(K_path_init)-2):
-                k_t   = K_path_new[t]
-                k_tp2 = K_path_new[t+2]
+            for t in range(len(k_path_init)-2):
+                k_t   = k_path_new[t]
+                k_tp2 = k_path_new[t+2]
                 
                 k_t, _ = self.DoBisection(k_t = k_t, 
                                           k_tp2 = k_tp2, 
                                           kmin = k_min,
                                           kmax = k_max,
-                                          ShowProgress = False,
-                                          MeasureElapsedTime = False)
-                K_path_new[t + 1] = deepcopy(k_t)
+                                          Silent = True)
+                k_path_new[t + 1] = deepcopy(k_t)
             
-            diff_i = [(k_new - k_old)**2 for (k_new, k_old) in zip(K_path_new, K_path_old)]
+            diff_i = [(k_new - k_old)**2 for (k_new, k_old) in zip(k_path_new, k_path_old)]
             diff_i = sum(diff_i)**0.5
-            K_path_old = deepcopy(K_path_new)
+            k_path_old = deepcopy(k_path_new)
             i += 1
         
-        return K_path_new
+        # Store the result as an attribute
+        self.k_path = k_path_new
+
                 
-            
+    def CalcDynamics(self, k_path):
+        A     = self.A
+        theta = self.theta
+        delta = self.delta
+        
+        # Repeat the last element of k_path to enable to calculate the investment path
+        k_path.append(k_path[-1])
+        
+        # Dynamics of labor input
+        l_path = [self.Calc_l(k_path[i]) for i in range(len(k_path) - 1)]
+        
+        # Dynamics of output
+        y_path = [A * k_path[i]**theta * l_path[i]**(1-theta) for i in range(len(k_path) - 1)]
+        
+        # Dynamics of investment
+        x_path = [k_path[i+1] - k_path[i] * (1 - delta) for i in range(len(k_path) - 1)]
+        
+        # Dynamics of consumption
+        c_path = [y_path[i] - x_path[i] for i in range(len(k_path) - 1)]
+                
+        # Dynamics of interest rate (= net return on capital)
+        r_path =  [A * theta * ((k_path[i]/l_path[i])**(1-theta)) - delta for i in range(len(k_path) - 1)]
+        
+        # Store the result as attributes
+        self.l_path = l_path
+        self.y_path = y_path
+        self.x_path = x_path
+        self.c_path = c_path
+        self.r_path = r_path
+        
+        
