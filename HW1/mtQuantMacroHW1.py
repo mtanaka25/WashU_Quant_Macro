@@ -26,7 +26,7 @@ class Det_NCG_Mdl:
         self.theta = theta
         self.delta = delta
         self.A     = A
-        self.k_0    = k_0
+        self.k_0   = k_0
 
 
     def SteadyState(self, PrintResult = True):
@@ -35,12 +35,10 @@ class Det_NCG_Mdl:
         delta = self.delta
         A     = self.A
        
-        # Calculate the steady-state investment
-        k_ss = A**(-theta) * theta**(-(1+theta)) * (1-theta) * \
-            (1/beta + delta - 1)**(1+theta)
-        k_ss = k_ss**(1/(theta**2 - theta - 1))
-        
-        
+        # Calculate the steady-state capital stock
+        k_ss = (1/beta + delta - 1)**((theta + 1)/(theta - 1)) *\
+            A**(-2/(theta - 1)) * theta**(-(theta + 1)/(theta - 1)) * (1-theta)
+             
         # Calculate the steady-state labor
         l_ss = (A * (1-theta))**(1/(1+theta)) * k_ss**(theta/(1+theta)) 
         
@@ -54,10 +52,6 @@ class Det_NCG_Mdl:
         
         if PrintResult:
             print(\
-                  "\n",
-                  "\n **********************************",\
-                  "\n        Question 1. (a)            ",\
-                  "\n **********************************",\
                   "\n  k_ss = {:.4f}".format(k_ss),\
                   "\n  l_ss = {:.4f}".format(l_ss),\
                   "\n  c_ss = {:.4f}".format(c_ss),\
@@ -65,21 +59,13 @@ class Det_NCG_Mdl:
                   )
 
 
-    def Calc_l(self, k_t, isQ1b = False):
+    def Calc_l(self, k_t):
         theta = self.theta
         A     = self.A
         
         # Calculate l_t following the FOC w.r.t. l_t
         l_t = (A * (1-theta))**(1/(1+theta)) * k_t**(theta/(1+theta)) 
         
-        if isQ1b:
-            print(\
-                  "\n",
-                  "\n **********************************",\
-                  "\n      Question 1. (b)-i            ",\
-                  "\n **********************************",\
-                  "\n  l_0 = {:.4f}".format(l_t)
-                  )
         return l_t
     
     
@@ -95,10 +81,6 @@ class Det_NCG_Mdl:
                     Silent = False):
         if not Silent:
             print(\
-                  "\n",
-                  "\n **********************************",\
-                  "\n      Question 1. (b)-ii           ",\
-                  "\n **********************************",\
                   "\nStarting bisection to find k_1 and l_1..."
                   "\n" 
                    )
@@ -177,10 +159,6 @@ class Det_NCG_Mdl:
                  Silent = False):
         if not Silent:
             print(\
-                  "\n",
-                  "\n **********************************",\
-                  "\n      Question 1. (b)-iii           ",\
-                  "\n **********************************",\
                   "\nStarting (quasi-)Newton method to find k_1 and l_1..."
                   "\n" 
                   )
@@ -277,18 +255,31 @@ class Det_NCG_Mdl:
            
         return df
         
-    def DoExtendedPath(self, k_path_init, tol = 10E-10, MaxIter = 500):
+    def DoExtendedPath(self, 
+                       k_path_init, 
+                       tol = 10E-10, 
+                       MaxIter = 500,
+                       iter2plot = (0, 1, 2, 3, 4),
+                       GraphicName = 'Result_of_Extended_Path' 
+                       ):
         k_min = 0.1
         k_max = self.k_ss * 1.1
         
-        
+        # Get ready for while loop
         diff_i = 1
         i      = 0
-        
         k_path_old = k_path_init
-        
+        k_path2plot = []
+        l_path2plot = []
+       
         while diff_i > tol and i < MaxIter:
             k_path_new = deepcopy(k_path_old)
+
+            if i in iter2plot:
+                k_path2plot.append(k_path_old)
+                
+                l_path_old = [self.Calc_l(k_path_old[j]) for j in range(len(k_path_init))]
+                l_path2plot.append(l_path_old)
             
             for t in range(len(k_path_init)-2):
                 k_t   = k_path_new[t]
@@ -306,9 +297,41 @@ class Det_NCG_Mdl:
             k_path_old = deepcopy(k_path_new)
             i += 1
         
-        # Store the result as an attribute
-        self.k_path = k_path_new
-
+        # Rename the optimal path to be used
+        k_path = k_path_new
+        k_path2plot.append(k_path)
+        
+        # Dynamics of labor input
+        l_path = [self.Calc_l(k_path[i]) for i in range(len(k_path))]
+        l_path2plot.append(l_path)
+        
+        # Plot the data
+        x = range(len(k_path2plot[0]))
+        
+        fig, ax = plt.subplots(2, 1, figsize=(6,8))
+        
+        for i in range(len(k_path2plot)):
+            if i < len(k_path2plot) - 1:
+                ax[0].plot(x, k_path2plot[i], label='Iter {:,}'.format(iter2plot[i]))
+            else:
+                ax[0].plot(x, k_path2plot[i], label='Optimal path')               
+        ax[0].set_title('Dynamics of capital stock')
+        ax[0].legend(frameon=False)
+        
+        for i in range(len(l_path2plot)):
+            if i < len(l_path2plot) - 1:
+                ax[1].plot(x, l_path2plot[i], label='Iter {:,}'.format(iter2plot[i]))
+            else:
+                ax[1].plot(x, l_path2plot[i], label='Optimal path')               
+        ax[1].set_title('Dynamics of labor input')
+        ax[1].legend(frameon=False)
+        plt.savefig(GraphicName, format='png')
+                
+        # Store the results as attributes
+        self.k_path      = k_path
+        self.k_path2plot = k_path2plot
+        self.l_path      = l_path
+        self.l_path2plot = l_path2plot
                 
     def CalcDynamics(self, k_path):
         A     = self.A
