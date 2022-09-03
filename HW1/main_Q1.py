@@ -7,7 +7,7 @@ is main code foe the assignment #1 of Quantitative Macroeconomic Theory
 at Washington University in St. Louis.
 
 Requirement:
-    mtQuantMacroHW1.py
+      mtQuantMacroHW1.py
 
 ...............................................................................
 Create Sep 1st, 2022 (Masaki Tanaka, Washington University in St. Louis)
@@ -100,27 +100,27 @@ model2.CalcDynamics(model2.k_path)
 # Plot
 x = range(51)
 fig, ax = plt.subplots(2, 2, figsize=(8,8))
-        
+
 ax[0, 0].plot(x, model1.y_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
 ax[0, 0].plot(x, model2.y_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
 ax[0, 0].set_title('Output')
 ax[0, 0].legend(frameon=False)
-        
+
 ax[1, 0].plot(x, model1.c_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
 ax[1, 0].plot(x, model2.c_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
 ax[1, 0].set_title('Consumption')
 ax[1, 0].legend(frameon=False)
-        
+
 
 ax[0, 1].plot(x, model1.x_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
 ax[0, 1].plot(x, model2.x_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
 ax[0, 1].set_title('Investment')
 ax[0, 1].legend(frameon=False)
-        
+
 
 ax[1, 1].plot(x, model1.r_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
 ax[1, 1].plot(x, model2.r_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
 ax[1, 1].set_title('Interest rate')
 ax[1, 1].legend(frameon=False)
-        
+
 plt.savefig('Other_Variable_Dynamics.png')

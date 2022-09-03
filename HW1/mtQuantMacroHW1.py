@@ -39,11 +39,11 @@ class Det_NCG_Mdl:
         theta = self.theta
         delta = self.delta
         A     = self.A
-       
+        
         # Calculate the steady-state capital stock
         k_ss = (1/beta + delta - 1)**((theta + 1)/(theta - 1)) *\
             A**(-2/(theta - 1)) * theta**(-(theta + 1)/(theta - 1)) * (1-theta)
-             
+        
         # Calculate the steady-state labor
         l_ss = (A * (1-theta))**(1/(1+theta)) * k_ss**(theta/(1+theta)) 
         
@@ -88,7 +88,7 @@ class Det_NCG_Mdl:
             print(\
                   "\nStarting bisection to find k_1 and l_1..."
                   "\n" 
-                   )
+                  )
 
         l_t = self.Calc_l(k_t)
         
@@ -110,7 +110,7 @@ class Det_NCG_Mdl:
         
         if MeasureElapsedTime:
             tic = time.perf_counter() # stopwatch starts
-            
+        
         while diff_i > tol and i < MaxIter:
             k_c = (k_a + k_b)/2
             l_c = self.Calc_l(k_c)
@@ -126,7 +126,7 @@ class Det_NCG_Mdl:
                 k_b = k_c
                 l_b = l_c
                 f_b = f_c              
-
+            
             diff_i = abs(f_c)
             i += 1
             
@@ -196,7 +196,7 @@ class Det_NCG_Mdl:
             
             ProgressTable.append([i, k_tp1_new, f_new])
             i += 1
-          
+            
         if ShowProgress and not Silent:
             print(tabulate(ProgressTable, headers=['Iter', 'k_t', 'Diff']))
         
@@ -219,7 +219,7 @@ class Det_NCG_Mdl:
                   )
         
         return k_tp1, l_tp1
-         
+        
     def EvalEulerEq(self, k_t, l_t, k_tp1, l_tp1, k_tp2):
         beta  = self.beta
         A     = self.A
@@ -255,9 +255,9 @@ class Det_NCG_Mdl:
         
         f     = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2)
         f_bar = self.EvalEulerEq(k_t, l_t, k_bar_tp1, l_bar_tp1, k_tp2)
-            
+        
         df = (f_bar - f)/Stepsize 
-           
+        
         return df
         
     def DoExtendedPath(self, 
@@ -276,7 +276,7 @@ class Det_NCG_Mdl:
         k_path_old = k_path_init
         k_path2plot = []
         l_path2plot = []
-       
+        
         while diff_i > tol and i < MaxIter:
             k_path_new = deepcopy(k_path_old)
 
