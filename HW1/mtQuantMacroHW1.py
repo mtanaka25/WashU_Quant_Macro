@@ -34,7 +34,7 @@ class Det_NCG_Mdl:
                 raise Exception("The given TFP path is shorter than the given simulation periods.")
         else:
             raise Exception("The given TFP path must be an float or a list of float.")
-                          
+        
         
         self.sigma  = sigma
         self.beta   = beta
