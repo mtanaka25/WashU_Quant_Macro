@@ -19,26 +19,37 @@ from copy import deepcopy
 
 class Det_NCG_Mdl:
     def __init__(self,
-                 sigma = 2.000, # risk aversion
-                 beta  = 0.960, # discount factor
-                 theta = 0.330, # capital share in production function
-                 delta = 0.081, # depreciation rate
-                 A     = 0.592, # TFP
-                 k_0   = 0.750, # Initial value of k
+                 sigma  = 2.000, # risk aversion
+                 beta   = 0.960, # discount factor
+                 theta  = 0.330, # capital share in production function
+                 delta  = 0.081, # depreciation rate
+                 A_list = 0.592, # List for TFP development
+                 k_0    = 0.750, # Initial value of k
+                 T      = 150    # Simulation periods
                  ):
-        self.sigma = sigma
-        self.beta  = beta
-        self.theta = theta
-        self.delta = delta
-        self.A     = A
-        self.k_0   = k_0
+        if type(A_list) == float:
+            A_list = [A_list for i in range(T + 1)]
+        elif type(A_list) == list:
+            if len(A_list) < T + 1:
+                raise Exception("The given TFP path is shorter than the given simulation periods.")
+        else:
+            raise Exception("The given TFP path must be an float or a list of float.")
+                          
+        
+        self.sigma  = sigma
+        self.beta   = beta
+        self.theta  = theta
+        self.delta  = delta
+        self.A_list = A_list
+        self.k_0    = k_0
+        self.T      = T
 
 
-    def SteadyState(self, PrintResult = True):
+    def SteadyState(self, t = 0, PrintResult = True, ReturnResult = False):
         beta  = self.beta
         theta = self.theta
         delta = self.delta
-        A     = self.A
+        A     = self.A_list[t]
         
         # Calculate the steady-state capital stock
         k_ss = (1/beta + delta - 1)**((theta + 1)/(theta - 1)) *\
@@ -50,11 +61,6 @@ class Det_NCG_Mdl:
         # Calculate the steady-state consumption
         c_ss = A * k_ss**theta * l_ss**(1-theta) - delta*k_ss
         
-        # Store the steady-state values as attributes
-        self.k_ss = k_ss
-        self.l_ss = l_ss
-        self.c_ss = c_ss
-        
         if PrintResult:
             print(\
                   "\n  k_ss = {:.4f}".format(k_ss),\
@@ -62,11 +68,17 @@ class Det_NCG_Mdl:
                   "\n  c_ss = {:.4f}".format(c_ss),\
                   "\n"
                   )
+        if ReturnResult:
+            return k_ss, l_ss, c_ss
+        else:
+            # Store the steady-state values as attributes
+            self.k_ss = k_ss
+            self.l_ss = l_ss
+            self.c_ss = c_ss
 
-
-    def Calc_l(self, k_t):
+    def Calc_l(self, k_t, t = 0):
         theta = self.theta
-        A     = self.A
+        A     = self.A_list[t]
         
         # Calculate l_t following the FOC w.r.t. l_t
         l_t = (A * (1-theta))**(1/(1+theta)) * k_t**(theta/(1+theta)) 
@@ -77,6 +89,7 @@ class Det_NCG_Mdl:
     def DoBisection(self,
                     k_t, # k at the current period
                     k_tp2, # k at the day after tomorrow
+                    t    = 0, # period
                     kmin = 0.1, # lower starting point for bijection
                     kmax = 2, # upper starting point for bijection
                     tol  = 10E-5, # torelance level in bijection
@@ -90,16 +103,16 @@ class Det_NCG_Mdl:
                   "\n" 
                   )
 
-        l_t = self.Calc_l(k_t)
+        l_t = self.Calc_l(k_t, t)
         
         k_a = kmin # lower starting point for bijection
-        l_a = self.Calc_l(k_a) # corresponding labor input
+        l_a = self.Calc_l(k_a, t) # corresponding labor input
         
         k_b = kmax # upper starting point for bijection
-        l_b = self.Calc_l(k_b) # corresponding labor input
+        l_b = self.Calc_l(k_b, t) # corresponding labor input
         
-        f_a = self.EvalEulerEq(k_t, l_t, k_a, l_a, k_tp2) # residual in Euler eq when k_a is used
-        f_b = self.EvalEulerEq(k_t, l_t, k_b, l_b, k_tp2) # residual in Euler eq when k_b is used
+        f_a = self.EvalEulerEq(k_t, l_t, k_a, l_a, k_tp2, t) # residual in Euler eq when k_a is used
+        f_b = self.EvalEulerEq(k_t, l_t, k_b, l_b, k_tp2, t) # residual in Euler eq when k_b is used
         
         if f_a * f_b > 0: # If the initial function values have the same sign, bisection cannot be applied
             raise ValueError("The starting points do not have the opposite signs. Change k_min and k_max and try again.")
@@ -113,8 +126,8 @@ class Det_NCG_Mdl:
         
         while diff_i > tol and i < MaxIter:
             k_c = (k_a + k_b)/2
-            l_c = self.Calc_l(k_c)
-            f_c = self.EvalEulerEq(k_t, l_t, k_c, l_c, k_tp2)
+            l_c = self.Calc_l(k_c, t)
+            f_c = self.EvalEulerEq(k_t, l_t, k_c, l_c, k_tp2, t)
             
             ProgressTable.append([i, k_a, k_b, k_c, f_c])
             
@@ -151,10 +164,12 @@ class Det_NCG_Mdl:
                   )
 
         return k_c, l_c
-    
+
+
     def DoNewton(self,
                  k_t  , # k in the current period     
                  k_tp2, # k on the day after tomorrow
+                 t        = 0,     # period
                  k_init   = 0.82,  # starting point for Newton method
                  tol      = 10E-5, # torelance level in Newton method
                  MaxIter  = 100,   # Maximum number of iterations
@@ -162,12 +177,13 @@ class Det_NCG_Mdl:
                  ShowProgress = True,
                  MeasureElapsedTime = True,
                  Silent = False):
+        
         if not Silent:
             print(\
                   "\nStarting (quasi-)Newton method to find k_1 and l_1..."
                   "\n" 
                   )
-        l_t = self.Calc_l(k_t)
+        l_t = self.Calc_l(k_t, t)
         
         k_tp1  = k_init
         
@@ -180,14 +196,14 @@ class Det_NCG_Mdl:
             
         while diff_i > tol and i < MaxIter:
             
-            l_tp1 = self.Calc_l(k_tp1)
+            l_tp1 = self.Calc_l(k_tp1, t)
             
-            f  = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2)
-            df = self.NumericalDiffEuler(k_t, l_t, k_tp1, l_tp1, k_tp2, Stepsize)
+            f  = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2, t)
+            df = self.NumericalDiffEuler(k_t, l_t, k_tp1, l_tp1, k_tp2, t, Stepsize)
 
             k_tp1_new = k_tp1 - f/df
-            l_tp1_new = self.Calc_l(k_tp1_new)
-            f_new     = self.EvalEulerEq(k_t, l_t, k_tp1_new, l_tp1_new, k_tp2)
+            l_tp1_new = self.Calc_l(k_tp1_new, t)
+            f_new     = self.EvalEulerEq(k_t, l_t, k_tp1_new, l_tp1_new, k_tp2, t)
             
             diff_i = abs(f_new)
             
@@ -220,24 +236,24 @@ class Det_NCG_Mdl:
         
         return k_tp1, l_tp1
         
-    def EvalEulerEq(self, k_t, l_t, k_tp1, l_tp1, k_tp2):
+    def EvalEulerEq(self, k_t, l_t, k_tp1, l_tp1, k_tp2, t = 0):
         beta  = self.beta
-        A     = self.A
+        A     = self.A_list[t]
         theta = self.theta
         delta = self.delta
 
-        LHS = self.MUC(k_t, l_t, k_tp1)
+        LHS = self.MUC(k_t, l_t, k_tp1, t)
         
         RHS = beta * (A * theta * (k_tp1/l_tp1)**(theta-1) + 1 - delta)\
-            * self.MUC(k_tp1, l_tp1, k_tp2)
+            * self.MUC(k_tp1, l_tp1, k_tp2, t)
         
         resid = LHS - RHS
         
         return resid
 
             
-    def MUC(self, k_t, l_t, k_tp1):
-        A     = self.A
+    def MUC(self, k_t, l_t, k_tp1, t):
+        A     = self.A_list[t]
         theta = self.theta
         delta = self.delta
         sigma = self.sigma
@@ -249,26 +265,26 @@ class Det_NCG_Mdl:
         return lmbd_t
     
 
-    def NumericalDiffEuler(self, k_t, l_t, k_tp1, l_tp1, k_tp2, Stepsize = 0.01):
+    def NumericalDiffEuler(self, k_t, l_t, k_tp1, l_tp1, k_tp2, t = 0, Stepsize = 0.01):
         k_bar_tp1 = k_tp1 + Stepsize
-        l_bar_tp1 = self.Calc_l(k_bar_tp1)
+        l_bar_tp1 = self.Calc_l(k_bar_tp1, t)
         
-        f     = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2)
-        f_bar = self.EvalEulerEq(k_t, l_t, k_bar_tp1, l_bar_tp1, k_tp2)
+        f     = self.EvalEulerEq(k_t, l_t, k_tp1, l_tp1, k_tp2, t)
+        f_bar = self.EvalEulerEq(k_t, l_t, k_bar_tp1, l_bar_tp1, k_tp2, t)
         
         df = (f_bar - f)/Stepsize 
         
         return df
         
     def DoExtendedPath(self, 
-                       k_path_init, 
+                       k_path_init,
+                       k_min = 0.1,
+                       k_max = 5,
                        tol = 10E-10, 
                        MaxIter = 500,
                        iter2plot = (0, 1, 2, 3, 4),
                        GraphicName = 'Result_of_Extended_Path' 
                        ):
-        k_min = 0.1
-        k_max = self.k_ss * 1.1
         
         # Get ready for while loop
         diff_i = 1
@@ -283,17 +299,18 @@ class Det_NCG_Mdl:
             if i in iter2plot:
                 k_path2plot.append(k_path_old)
                 
-                l_path_old = [self.Calc_l(k_path_old[j]) for j in range(len(k_path_init))]
+                l_path_old = [self.Calc_l(k_path_old[t], t) for t in range(len(k_path_init))]
                 l_path2plot.append(l_path_old)
             
             for t in range(len(k_path_init)-2):
                 k_t   = k_path_new[t]
                 k_tp2 = k_path_new[t+2]
                 
-                k_t, _ = self.DoBisection(k_t = k_t, 
-                                          k_tp2 = k_tp2, 
-                                          kmin = k_min,
-                                          kmax = k_max,
+                k_t, _ = self.DoBisection(k_t    = k_t, 
+                                          k_tp2  = k_tp2,
+                                          t      = t,
+                                          kmin   = k_min,
+                                          kmax   = k_max,
                                           Silent = True)
                 k_path_new[t + 1] = deepcopy(k_t)
             
@@ -307,7 +324,7 @@ class Det_NCG_Mdl:
         k_path2plot.append(k_path)
         
         # Dynamics of labor input
-        l_path = [self.Calc_l(k_path[i]) for i in range(len(k_path))]
+        l_path = [self.Calc_l(k_path[t], t) for t in range(len(k_path))]
         l_path2plot.append(l_path)
         
         # Plot the data
@@ -337,29 +354,30 @@ class Det_NCG_Mdl:
         self.k_path2plot = k_path2plot
         self.l_path      = l_path
         self.l_path2plot = l_path2plot
+
                 
     def CalcDynamics(self, k_path):
-        A     = self.A
-        theta = self.theta
-        delta = self.delta
+        A_path = self.A_path
+        theta  = self.theta
+        delta  = self.delta
         
         # Repeat the last element of k_path to enable to calculate the investment path
         k_path.append(k_path[-1])
         
         # Dynamics of labor input
-        l_path = [self.Calc_l(k_path[i]) for i in range(len(k_path) - 1)]
+        l_path = [self.Calc_l(k_path[t], t) for t in range(len(k_path) - 1)]
         
         # Dynamics of output
-        y_path = [A * k_path[i]**theta * l_path[i]**(1-theta) for i in range(len(k_path) - 1)]
+        y_path = [A_path[t] * k_path[t]**theta * l_path[t]**(1-theta) for t in range(len(k_path) - 1)]
         
         # Dynamics of investment
-        x_path = [k_path[i+1] - k_path[i] * (1 - delta) for i in range(len(k_path) - 1)]
+        x_path = [k_path[t+1] - k_path[t] * (1 - delta) for t in range(len(k_path) - 1)]
         
         # Dynamics of consumption
-        c_path = [y_path[i] - x_path[i] for i in range(len(k_path) - 1)]
+        c_path = [y_path[t] - x_path[t] for t in range(len(k_path) - 1)]
                 
         # Dynamics of interest rate (= net return on capital)
-        r_path =  [A * theta * ((k_path[i]/l_path[i])**(1-theta)) - delta for i in range(len(k_path) - 1)]
+        r_path =  [A_path[t] * theta * ((k_path[t]/l_path[t])**(1-theta)) - delta for t in range(len(k_path) - 1)]
         
         # Store the result as attributes
         self.l_path = l_path
