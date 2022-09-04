@@ -71,6 +71,7 @@ print("\n",
       )
 # Initial guess: linear transition
 k_path_guess = [model1.k_0 + (model1.k_ss - model1.k_0) * i / (T + 1) for i in range(T + 1)]
+
 model1.DoExtendedPath(k_path_guess, k_max = model1.k_ss * 1.1, GraphicName='ExtendedPath_sigma2.png')
 
 # -------------------------------------------------------------------------

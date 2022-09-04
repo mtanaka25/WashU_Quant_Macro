@@ -60,21 +60,37 @@ class Det_NCG_Mdl:
         
         # Calculate the steady-state consumption
         c_ss = A * k_ss**theta * l_ss**(1-theta) - delta*k_ss
+
+        # Calculate the steady-state output
+        y_ss = A * k_ss**theta * l_ss**(1-theta)
+        
+        # Calculate the steady-state investment
+        x_ss = y_ss - c_ss
+        
+        # Calculate the steady-state interest rate
+        r_ss = A * theta * (k_ss / l_ss)**(theta - 1) - delta
         
         if PrintResult:
             print(\
                   "\n  k_ss = {:.4f}".format(k_ss),\
                   "\n  l_ss = {:.4f}".format(l_ss),\
                   "\n  c_ss = {:.4f}".format(c_ss),\
+                  "\n  y_ss = {:.4f}".format(y_ss),\
+                  "\n  x_ss = {:.4f}".format(x_ss),\
+                  "\n  r_ss = {:.4f}".format(r_ss),\
                   "\n"
                   )
         if ReturnResult:
-            return k_ss, l_ss, c_ss
+            return k_ss, l_ss, c_ss, y_ss, x_ss, r_ss
         else:
             # Store the steady-state values as attributes
             self.k_ss = k_ss
             self.l_ss = l_ss
             self.c_ss = c_ss
+            self.y_ss = y_ss
+            self.x_ss = x_ss
+            self.r_ss = r_ss
+
 
     def Calc_l(self, k_t, t = 0):
         theta = self.theta
@@ -357,7 +373,7 @@ class Det_NCG_Mdl:
 
                 
     def CalcDynamics(self, k_path):
-        A_path = self.A_path
+        A_list = self.A_list
         theta  = self.theta
         delta  = self.delta
         
@@ -368,7 +384,7 @@ class Det_NCG_Mdl:
         l_path = [self.Calc_l(k_path[t], t) for t in range(len(k_path) - 1)]
         
         # Dynamics of output
-        y_path = [A_path[t] * k_path[t]**theta * l_path[t]**(1-theta) for t in range(len(k_path) - 1)]
+        y_path = [A_list[t] * k_path[t]**theta * l_path[t]**(1-theta) for t in range(len(k_path) - 1)]
         
         # Dynamics of investment
         x_path = [k_path[t+1] - k_path[t] * (1 - delta) for t in range(len(k_path) - 1)]
@@ -377,7 +393,7 @@ class Det_NCG_Mdl:
         c_path = [y_path[t] - x_path[t] for t in range(len(k_path) - 1)]
                 
         # Dynamics of interest rate (= net return on capital)
-        r_path =  [A_path[t] * theta * ((k_path[t]/l_path[t])**(1-theta)) - delta for t in range(len(k_path) - 1)]
+        r_path =  [A_list[t] * theta * ((k_path[t]/l_path[t])**(theta - 1)) - delta for t in range(len(k_path) - 1)]
         
         # Store the result as attributes
         self.l_path = l_path
