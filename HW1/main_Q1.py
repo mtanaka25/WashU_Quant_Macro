@@ -3,7 +3,7 @@
 """
 main_Q1.py
 
-is main code foe the assignment #1 of Quantitative Macroeconomic Theory
+is main code for the assignment #1 of Quantitative Macroeconomic Theory
 at Washington University in St. Louis.
 
 Requirement:
@@ -20,9 +20,11 @@ import matplotlib.pyplot as plt
 # =========================================================================
 # 1.
 # =========================================================================
+# Setting
+T = 150
 
 # Generate a NCG model instance
-model1 = Det_NCG_Mdl()
+model1 = Det_NCG_Mdl(T = T)
 
 # -------------------------------------------------------------------------
 # (a) Calculate the steady state
@@ -68,8 +70,9 @@ print("\n",
       "\n **********************************",\
       )
 # Initial guess: linear transition
-k_path_guess = [model1.k_0 + (model1.k_ss - model1.k_0) * i / 151 for i in range(151)]
-model1.DoExtendedPath(k_path_guess, GraphicName='ExtendedPath_sigma2.png')
+k_path_guess = [model1.k_0 + (model1.k_ss - model1.k_0) * i / (T + 1) for i in range(T + 1)]
+
+model1.DoExtendedPath(k_path_guess, k_max = model1.k_ss * 1.1, GraphicName='ExtendedPath_sigma2.png')
 
 # -------------------------------------------------------------------------
 # (d) Redo with the economy where sigma = 4
@@ -83,8 +86,8 @@ model2 = Det_NCG_Mdl(sigma = 4.0)
 
 model2.SteadyState()
 
-k_path_guess = [model2.k_0 + (model2.k_ss - model2.k_0) * i / 151 for i in range(151)]
-model2.DoExtendedPath(k_path_guess, GraphicName='ExtendedPath_sigma4.png')
+k_path_guess = [model2.k_0 + (model2.k_ss - model2.k_0) * i / (T + 1) for i in range(T + 1)]
+model2.DoExtendedPath(k_path_guess, k_max = model2.k_ss * 1.1,  GraphicName='ExtendedPath_sigma4.png')
 
 # -------------------------------------------------------------------------
 # (e) Calculate the other variables' dynamics
