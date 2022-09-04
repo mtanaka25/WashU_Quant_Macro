@@ -72,7 +72,7 @@ print("\n",
 # Initial guess: linear transition
 k_path_guess = [model1.k_0 + (model1.k_ss - model1.k_0) * i / (T + 1) for i in range(T + 1)]
 
-model1.DoExtendedPath(k_path_guess, k_max = model1.k_ss * 1.1, GraphicName='ExtendedPath_sigma2.png')
+model1.DoExtendedPath(k_path_guess, k_max = model1.k_ss * 1.1, GraphicName='Econ5725_HW01_Q1c.png')
 
 # -------------------------------------------------------------------------
 # (d) Redo with the economy where sigma = 4
@@ -87,7 +87,7 @@ model2 = Det_NCG_Mdl(sigma = 4.0)
 model2.SteadyState()
 
 k_path_guess = [model2.k_0 + (model2.k_ss - model2.k_0) * i / (T + 1) for i in range(T + 1)]
-model2.DoExtendedPath(k_path_guess, k_max = model2.k_ss * 1.1,  GraphicName='ExtendedPath_sigma4.png')
+model2.DoExtendedPath(k_path_guess, k_max = model2.k_ss * 1.1,  GraphicName='Econ5725_HW01_Q1d.png')
 
 # -------------------------------------------------------------------------
 # (e) Calculate the other variables' dynamics
@@ -126,4 +126,4 @@ ax[1, 1].plot(x, model2.r_path[0:51], label='sigma = {:.1f}'.format(model2.sigma
 ax[1, 1].set_title('Interest rate')
 ax[1, 1].legend(frameon=False)
 
-plt.savefig('Other_Variable_Dynamics.png')
+plt.savefig('Econ5725_HW01_Q1e.png')
