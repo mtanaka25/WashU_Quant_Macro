@@ -297,7 +297,7 @@ class Det_NCG_Mdl:
                        k_min = 0.1,
                        k_max = 5,
                        tol = 10E-10, 
-                       MaxIter = 500,
+                       MaxIter = 10000,
                        iter2plot = (0, 1, 2, 3, 4),
                        GraphicName = 'Result_of_Extended_Path' 
                        ):
@@ -334,6 +334,9 @@ class Det_NCG_Mdl:
             diff_i = sum(diff_i)**0.5
             k_path_old = deepcopy(k_path_new)
             i += 1
+        
+        if diff_i > tol: # If difference is still greater than the tolerance level, raise an exception
+            raise Exception("Extended path failed to find the solution within MaxIter.")
         
         # Rename the optimal path to be used
         k_path = k_path_new
