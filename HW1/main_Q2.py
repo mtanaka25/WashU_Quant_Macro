@@ -49,7 +49,7 @@ k_ss_new, _, _, _, _, _ = model3.SteadyState(t = T, PrintResult = False, ReturnR
 k_path_guess = [model3.k_ss + (k_ss_new - model3.k_ss) * t / (T + 1) for t in range(T + 1)]
 
 # Implement the extended path
-model3.DoExtendedPath(k_path_guess, k_min = model3.k_ss * 0.5, k_max = k_ss_new * 1.1, GraphicName='Econ5275_HW01_Q2a.png')
+model3.DoExtendedPath(k_path_guess, k_min = model3.k_ss * 0.5, k_max = k_ss_new * 1.1, GraphicName='Econ5725_HW01_Q2a.png')
 
 
 # -------------------------------------------------------------------------
@@ -63,25 +63,10 @@ print("\n",
 model3.CalcDynamics(model3.k_path)
 
 Y_hat = [(np.log(model3.y_path[t]) - np.log(model3.y_ss)) * 100 for t in range(9)]
-L_hat = [(np.log(model3.l_path[t]) - np.log(model3.l_ss)) * 100 for t in range(9)] # This is not used in (b), but in (c)
+L_hat = [(np.log(model3.l_path[t]) - np.log(model3.l_ss)) * 100 for t in range(9)]
 I_hat = [(np.log(model3.x_path[t]) - np.log(model3.x_ss)) * 100 for t in range(9)]
 C_hat = [(np.log(model3.c_path[t]) - np.log(model3.c_ss)) * 100 for t in range(9)]
 RR    = [model3.r_path[t] * 100 for t in range(9)]
-
-# Plot
-x = range(9)
-fig, ax = plt.subplots(2, 2, figsize=(10,8))
-
-ax[0, 0].plot(x, Y_hat)
-ax[0, 0].set_title('Output')
-ax[1, 0].plot(x, C_hat)
-ax[1, 0].set_title('Consumption')
-ax[0, 1].plot(x, I_hat)
-ax[0, 1].set_title('Investment')
-ax[1, 1].plot(x, RR)
-ax[1, 1].set_title('Real interest rate')
-
-plt.savefig('Econ5275_HW01_Q2b.png')
 
 # -------------------------------------------------------------------------
 # (c) Implement extended path to derive the dynamics of k and l
@@ -176,4 +161,4 @@ ax[2, 0].legend(frameon=False)
 
 ax[2, 1].axis("off")
 
-plt.savefig('Econ5275_HW01_Q2c.png')
+plt.savefig('Econ5725_HW01_Q2bc.png')

@@ -102,7 +102,7 @@ model2.CalcDynamics(model2.k_path)
 
 # Plot
 x = range(51)
-fig, ax = plt.subplots(2, 2, figsize=(8,8))
+fig, ax = plt.subplots(3, 2, figsize=(10, 12))
 
 ax[0, 0].plot(x, model1.y_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
 ax[0, 0].plot(x, model2.y_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
@@ -120,10 +120,17 @@ ax[0, 1].plot(x, model2.x_path[0:51], label='sigma = {:.1f}'.format(model2.sigma
 ax[0, 1].set_title('Investment')
 ax[0, 1].legend(frameon=False)
 
-
-ax[1, 1].plot(x, model1.r_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
-ax[1, 1].plot(x, model2.r_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
-ax[1, 1].set_title('Interest rate')
+ax[1, 1].plot(x, model1.l_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
+ax[1, 1].plot(x, model2.l_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[1, 1].set_title('Employment')
 ax[1, 1].legend(frameon=False)
+
+
+ax[2, 0].plot(x, model1.r_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
+ax[2, 0].plot(x, model2.r_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[2, 0].set_title('Interest rate')
+ax[2, 0].legend(frameon=False)
+
+ax[2, 1].axis("off")
 
 plt.savefig('Econ5725_HW01_Q1e.png')
