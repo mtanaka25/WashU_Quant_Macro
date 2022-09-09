@@ -77,7 +77,8 @@ print("\n",
       "\n **********************************",\
       )
 # Connect to FRED
-fred = Fred(api_key = '824eaabba782e478f1473dc862757ab9')
+# Use your own api key. You can apply the key on the website of FRED (for free).
+fred = Fred(api_key = '###################') 
 
 
 # Obtain the necessary data from FRED
