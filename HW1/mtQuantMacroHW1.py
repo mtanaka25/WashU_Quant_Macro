@@ -10,8 +10,6 @@ at Washington University in St. Louis.
 Create Sep 1st, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import time
 from tabulate import tabulate
