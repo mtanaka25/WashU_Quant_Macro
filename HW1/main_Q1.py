@@ -9,26 +9,29 @@ at Washington University in St. Louis.
 Requirement:
       mtQuantMacroHW1.py
 
-...............................................................................
+..........................................................................
 Create Sep 1st, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
 
 from mtQuantMacroHW1 import Det_NCG_Mdl
 import matplotlib.pyplot as plt
+import seaborn
 
 # =========================================================================
 # 1.
 # =========================================================================
 # Setting
-T = 150
-
-# Generate a NCG model instance
-model1 = Det_NCG_Mdl(T = T)
+T      = 150
+T2Plot = 50
+k_2    = 0.82
 
 # -------------------------------------------------------------------------
 # (a) Calculate the steady state
 # -------------------------------------------------------------------------
+# Generate a NCG model instance
+model1 = Det_NCG_Mdl(T = T)
+
 print("\n",
       "\n **********************************",\
       "\n        Question 1. (a)            ",\
@@ -55,7 +58,6 @@ print("\n",
 # -------------------------------------------------------------------------
 # (b-2) Implement bisection to find k_1 and l_1
 # -------------------------------------------------------------------------
-k_2 = 0.82
 k_1, l_1 = model1.DoBisection(k_t = model1.k_0, k_tp2 = k_2)
 
 # (b-3) Implement Newton method to find k_1 and l_1
@@ -101,36 +103,47 @@ model1.CalcDynamics(model1.k_path)
 model2.CalcDynamics(model2.k_path)
 
 # Plot
-x = range(51)
+x = range(T2Plot+1)
 fig, ax = plt.subplots(3, 2, figsize=(10, 12))
 
-ax[0, 0].plot(x, model1.y_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
-ax[0, 0].plot(x, model2.y_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[0, 0].plot(x, model1.y_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model1.sigma))
+ax[0, 0].plot(x, model2.y_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model2.sigma), linestyle='dashed')
 ax[0, 0].set_title('Output')
 ax[0, 0].legend(frameon=False)
 
-ax[1, 0].plot(x, model1.c_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
-ax[1, 0].plot(x, model2.c_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[1, 0].plot(x, model1.c_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model1.sigma))
+ax[1, 0].plot(x, model2.c_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model2.sigma), linestyle='dashed')
 ax[1, 0].set_title('Consumption')
 ax[1, 0].legend(frameon=False)
 
 
-ax[0, 1].plot(x, model1.x_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
-ax[0, 1].plot(x, model2.x_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[0, 1].plot(x, model1.x_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model1.sigma))
+ax[0, 1].plot(x, model2.x_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model2.sigma), linestyle='dashed')
 ax[0, 1].set_title('Investment')
 ax[0, 1].legend(frameon=False)
 
-ax[1, 1].plot(x, model1.l_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
-ax[1, 1].plot(x, model2.l_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[1, 1].plot(x, model1.l_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model1.sigma))
+ax[1, 1].plot(x, model2.l_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model2.sigma), linestyle='dashed')
 ax[1, 1].set_title('Employment')
 ax[1, 1].legend(frameon=False)
 
 
-ax[2, 0].plot(x, model1.r_path[0:51], label='sigma = {:.1f}'.format(model1.sigma))
-ax[2, 0].plot(x, model2.r_path[0:51], label='sigma = {:.1f}'.format(model2.sigma))
+ax[2, 0].plot(x, model1.r_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model1.sigma))
+ax[2, 0].plot(x, model2.r_path[0:T2Plot+1], 
+              label='sigma = {:.1f}'.format(model2.sigma), linestyle='dashed')
 ax[2, 0].set_title('Interest rate')
 ax[2, 0].legend(frameon=False)
 
 ax[2, 1].axis("off")
 
-plt.savefig('Econ5725_HW01_Q1e.png')
+plt.savefig('Econ5725_HW01_Q1e.png', bbox_inches='tight', pad_inches=0)
+plt.show()

@@ -9,7 +9,7 @@ at Washington University in St. Louis.
 Requirement:
       mtQuantMacroHW1.py
 
-...............................................................................
+..........................................................................
 Create Sep 2nd, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from fredapi import Fred
 from statsmodels.tsa.filters.hp_filter import hpfilter
+import seaborn
 
 # =========================================================================
 # 2.
@@ -28,12 +29,16 @@ from statsmodels.tsa.filters.hp_filter import hpfilter
 T      = 100
 A_list = [0.592, 0.588, 0.561, 0.581, 0.596, 0.601, 0.605] + [0.606 for t in range(7, T + 1)]
 
-# Generate a NCG model instance
-model3 = Det_NCG_Mdl(T = T, A_list = A_list)
+# Use your own api key. 
+# You can apply the key on the website of FRED (for free).
+your_fred_api_key = '#############################'
 
 # -------------------------------------------------------------------------
 # (a) Implement extended path to derive the dynamics of k and l
 # -------------------------------------------------------------------------
+# Generate a NCG model instance
+model3 = Det_NCG_Mdl(T = T, A_list = A_list)
+
 print("\n",
       "\n **********************************",\
       "\n        Question 2. (a)            ",\
@@ -77,9 +82,7 @@ print("\n",
       "\n **********************************",\
       )
 # Connect to FRED
-# Use your own api key. You can apply the key on the website of FRED (for free).
-fred = Fred(api_key = '###################') 
-
+fred = Fred(api_key = your_fred_api_key) 
 
 # Obtain the necessary data from FRED
 Y_obs = fred.get_series('GDPC1')
@@ -88,7 +91,7 @@ I_obs = fred.get_series('GPDIC1')
 C_obs = fred.get_series('PCECC96')
 
 # For employment data, convert from monthly to quarterly.
-L_obs = L_obs.resample('Q', convention='end').mean()
+L_obs = L_obs.resample('Q').mean()
 
 # Apply HP-filter to log Y, log L, log I, and log C
 # The resulting cyclical components are log-difference between observed data
@@ -115,7 +118,7 @@ NR_obs = fred.get_series('MPRIME', observation_start='2019-10-01', observation_e
 Pi_obs = fred.get_series('A191RI1Q225SBEA', observation_start='2019-10-01', observation_end='2021-12-31')
 
 # For nominal interest rate (prime loan rate), convert from monthly to quarterly.
-NR_obs = NR_obs.resample('Q', convention='end').last()
+NR_obs = NR_obs.resample('Q').mean()
 
 # Reset the index
 NR_obs = pd.Series(NR_obs.tolist(), index = Pi_obs.index)
@@ -123,43 +126,47 @@ NR_obs = pd.Series(NR_obs.tolist(), index = Pi_obs.index)
 # Real rate = nominal rate - inflation rate
 RR_obs = NR_obs - Pi_obs
 
-
-
 # Plot
-x      = Y_hat_obs.index
-xLabel = ['19Q4', '20Q1', 'Q2', 'Q3', 'Q4', '21Q1', 'Q2', 'Q3', 'Q4']
+x       = Y_hat_obs.index
+xLabel  = ['19Q4', '20Q1', 'Q2', 'Q3', 'Q4', '21Q1', 'Q2', 'Q3', 'Q4']
 fig, ax = plt.subplots(3, 2, figsize=(10,12))
 
 ax[0, 0].plot(x, Y_hat    , label='model')
-ax[0, 0].plot(x, Y_hat_obs, label='data' )
+ax[0, 0].plot(x, Y_hat_obs, label='data' , linestyle='dashed')
+ax[0, 0].set_xticks(x)
 ax[0, 0].set_xticklabels(xLabel)
 ax[0, 0].set_title('Output')
 ax[0, 0].legend(frameon=False)
 
 ax[1, 0].plot(x, C_hat    , label='model')
-ax[1, 0].plot(x, C_hat_obs, label='data' )
+ax[1, 0].plot(x, C_hat_obs, label='data' , linestyle='dashed')
+ax[1, 0].set_xticks(x)
 ax[1, 0].set_xticklabels(xLabel)
 ax[1, 0].set_title('Consumption')
 ax[1, 0].legend(frameon=False)
 
 ax[0, 1].plot(x, I_hat    , label='model')
-ax[0, 1].plot(x, I_hat_obs, label='data' )
+ax[0, 1].plot(x, I_hat_obs, label='data' , linestyle='dashed')
+ax[0, 1].set_xticks(x)
 ax[0, 1].set_xticklabels(xLabel)
 ax[0, 1].set_title('Investment')
 ax[0, 1].legend(frameon=False)
 
 ax[1, 1].plot(x, L_hat    , label='model')
-ax[1, 1].plot(x, L_hat_obs, label='data' )
+ax[1, 1].plot(x, L_hat_obs, label='data' , linestyle='dashed')
+ax[1, 1].set_xticks(x)
 ax[1, 1].set_xticklabels(xLabel)
 ax[1, 1].set_title('Employment')
 ax[1, 1].legend(frameon=False)
 
 ax[2, 0].plot(x, RR    , label='model')
-ax[2, 0].plot(x, RR_obs, label='data' )
+ax[2, 0].plot(x, RR_obs, label='data' , linestyle='dashed')
+ax[2, 0].set_xticks(x)
 ax[2, 0].set_xticklabels(xLabel)
 ax[2, 0].set_title('Real interest rate')
 ax[2, 0].legend(frameon=False)
 
-ax[2, 1].axis("off")
+ax[2, 1].axis('off')
 
-plt.savefig('Econ5725_HW01_Q2bc.png')
+plt.savefig('Econ5725_HW01_Q2bc.png', bbox_inches='tight', pad_inches=0)
+plt.show()

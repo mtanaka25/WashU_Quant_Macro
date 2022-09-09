@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import time
 from tabulate import tabulate
 from copy import deepcopy
+import seaborn
 
 class Det_NCG_Mdl:
     def __init__(self,
@@ -364,8 +365,9 @@ class Det_NCG_Mdl:
                 ax[1].plot(x, l_path2plot[i], label='Optimal path')               
         ax[1].set_title('Dynamics of labor input')
         ax[1].legend(frameon=False)
-        plt.savefig(GraphicName)
-                
+        plt.savefig(GraphicName, bbox_inches='tight', pad_inches=0)
+        plt.show()
+        
         # Store the results as attributes
         self.k_path      = k_path
         self.k_path2plot = k_path2plot
