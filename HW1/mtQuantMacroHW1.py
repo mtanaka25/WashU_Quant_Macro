@@ -259,7 +259,7 @@ class Det_NCG_Mdl:
         LHS = self.MUC(k_t, l_t, k_tp1, t)
         
         RHS = beta * (A * theta * (k_tp1/l_tp1)**(theta-1) + 1 - delta)\
-            * self.MUC(k_tp1, l_tp1, k_tp2, t)
+            * self.MUC(k_tp1, l_tp1, k_tp2, t+1)
         
         resid = LHS - RHS
         
@@ -320,13 +320,13 @@ class Det_NCG_Mdl:
                 k_t   = k_path_new[t]
                 k_tp2 = k_path_new[t+2]
                 
-                k_t, _ = self.DoBisection(k_t    = k_t, 
-                                          k_tp2  = k_tp2,
-                                          t      = t,
-                                          kmin   = k_min,
-                                          kmax   = k_max,
-                                          Silent = True)
-                k_path_new[t + 1] = deepcopy(k_t)
+                k_tp1, _ = self.DoBisection(k_t    = k_t, 
+                                            k_tp2  = k_tp2,
+                                            t      = t,
+                                            kmin   = k_min,
+                                            kmax   = k_max,
+                                            Silent = True)
+                k_path_new[t+1] = deepcopy(k_tp1)
             
             diff_i = [(k_new - k_old)**2 for (k_new, k_old) in zip(k_path_new, k_path_old)]
             diff_i = sum(diff_i)**0.5
