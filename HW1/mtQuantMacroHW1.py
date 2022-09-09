@@ -3,7 +3,7 @@
 """
 mtQuantMacroHW1.py
 
-is the python class foe the assignment #1 of Quantitative Macroeconomic Theory
+is the python class for the assignment #1 of Quantitative Macroeconomic Theory
 at Washington University in St. Louis.
 
 ...............................................................................
