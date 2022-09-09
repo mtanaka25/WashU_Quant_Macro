@@ -22,7 +22,7 @@ class Det_NCG_Mdl:
                  beta   = 0.960, # discount factor
                  theta  = 0.330, # capital share in production function
                  delta  = 0.081, # depreciation rate
-                 A_list = 0.592, # List for TFP development
+                 A_list = 0.592, # TFP level or list for TFP development
                  k_0    = 0.750, # Initial value of k
                  T      = 150    # Simulation periods
                  ):
@@ -32,7 +32,7 @@ class Det_NCG_Mdl:
             if len(A_list) < T + 1:
                 raise Exception("The given TFP path is shorter than the given simulation periods.")
         else:
-            raise Exception("The given TFP path must be an float or a list of float.")
+            raise Exception("The given TFP path must be a float or a list of float.")
         
         
         self.sigma  = sigma
