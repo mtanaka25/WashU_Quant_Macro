@@ -14,4 +14,25 @@ Create Sep 14, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
 
-from mtQuantMacroHW2 import GHH_Model
+from mtQuantMacroHW2 import GHHModel
+
+# =========================================================================
+# Setting
+# =========================================================================
+
+
+
+# -------------------------------------------------------------------------
+# (a) Solve with 100 grid points and without any speed-up method
+# -------------------------------------------------------------------------
+print("\n",
+      "\n **********************************",\
+      "\n        Question 1. (a)            ",\
+      "\n **********************************",\
+      )
+
+# Generate a GHH model instance
+GHH_Qa = GHHModel()
+GHH_Qa.value_func_iter()
+
+

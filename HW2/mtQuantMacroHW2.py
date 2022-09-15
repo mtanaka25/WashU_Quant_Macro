@@ -7,18 +7,15 @@ is the python class for the assignment #2 of Quantitative Macroeconomic Theory
 at Washington University in St. Louis.
 
 ...............................................................................
-Create Sep 13, 2022 (Masaki Tanaka, Washington University in St. Louis)
+Create Sep 14, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
-from cmath import isnan
-from email import policy
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import time
 import seaborn
 from tabulate import tabulate
-from copy import deepcopy
 from fredapi import Fred
 from statsmodels.tsa.filters.hp_filter import hpfilter
 
@@ -51,8 +48,8 @@ class GHHModel:
         pi12   = 1 - pi11
         pi22   = 0.5 * (lmbd + 1)
         pi21   = 1 - pi22
-        prob = np.array([pi11, pi21],
-                        [pi12, pi22])      
+        prob = np.array([[pi11, pi21],
+                         [pi12, pi22]])      
                 
         # Store the parameter values as instance attributes
         self.alpha  = alpha
@@ -121,8 +118,8 @@ class GHHModel:
         idx0, idx1 = np.unravel_index(np.argmax(obj_func_val, axis = None), 
                                       obj_func_val.shape)
         
-        h_hat = h_grid[idx0] # Pick up the optimal utilization rate
-        l_hat = l_grid[idx1] # Pick up the optimal labor input
+        h_hat = h_grid[idx0, 0] # Pick up the optimal utilization rate
+        l_hat = l_grid[0, idx1] # Pick up the optimal labor input
         
         return h_hat, l_hat
     
@@ -141,21 +138,21 @@ class GHHModel:
         capital stock tomorrow (k'), which is optimally chosen today.
         """
         # load necessary parameter values from instance attributes
-        alpha   = self.alpha
-        beta    = self.beta
-        theta   = self.theta
-        omega   = self.omega
-        gamma   = self.gamma
-        A       = self.A
-        B       = self.B
-        nGrids  = self.nGrids
-        k_grids = self.k_grids
-        prob_r  = self.prob[eps_idx, ]
-        k       = self.k_grids[k_idx]
-        eps     = self.eps_list[eps_idx]
+        alpha  = self.alpha
+        beta   = self.beta
+        theta  = self.theta
+        omega  = self.omega
+        gamma  = self.gamma
+        A      = self.A
+        B      = self.B
+        nGrids = self.nGrids
+        k_grid = self.k_grid
+        prob_r = self.prob[:, eps_idx]
+        k      = self.k_grid[k_idx]
+        eps    = self.eps_list[eps_idx]
         
         # Allocate memory for the vector of possible today's value
-        possible_V_td = np.ones(nGrids)
+        possible_V_td = np.ones((nGrids, ))
         
         # Find the optimal utilization rate and the optimal
         # labor input under the given k and epsilon
@@ -166,7 +163,7 @@ class GHHModel:
         # h_hat and l_hat
         c_list = (
                  A * (k*h_hat)**alpha * l_hat**(1-alpha)
-                 - k_grids * np.exp(-eps)
+                 - k_grid * np.exp(-eps)
                  + k * (1 - B * h_hat**omega / omega) * np.exp(-eps)
                 )
         
@@ -176,20 +173,21 @@ class GHHModel:
         # Check if the inside is positive
         # Otherwise, cannot compute powers for some gamma values
         #   e.g. (-0.5)**(0.2) is not defined in real numbers
-        is_computable =  (u_list >= 0)
+        is_computable =  (u_list > 0)
         
         # Update the computable elements in possible today's value vector
         u_list[is_computable] = 1/(1-gamma) * (u_list[is_computable])**(1-gamma)
+              
         possible_V_td[is_computable] = (
             u_list[is_computable] 
-            + beta * V_tmrw[is_computable] * prob_r
+            + beta * np.dot(V_tmrw[is_computable, :], prob_r)
             ) 
         
         # Set the un-computable elements to penalty      
         possible_V_td[is_computable==False] = penalty
         
         # take the maximum in the possible today's value vector
-        k_tmrw_idx = possible_V_td.argmax
+        k_tmrw_idx = possible_V_td.argmax()
         V_td_k_eps = possible_V_td[k_tmrw_idx]   
                 
         return V_td_k_eps, k_tmrw_idx
@@ -202,30 +200,31 @@ class GHHModel:
                         is_monotone = False, # if true, exploit monotonicity
                         is_modified_policy_iter = False, # if true, implement modified policy itereation
                         n_h = 10,
-                        penalty = -999.0, # punitive value if any violation happens
+                        penalty = -500.0, # punitive value if any violation happens
                         ):
         # if initial guess for V is not given, start with zero matrix
         if np.isnan(V_init):
-            V_init = np.zeros(self.nGrids, len(self.eps_list))
+            V_init = np.zeros((self.nGrids, len(self.eps_list)))
         
         # Initialize while-loop
         i      = 0
         diff   = 1.0
         V_post = V_init.copy()
-        policy_func = np.zeros(self.nGrids, len(self.eps_list))
+        policy_func = np.zeros((self.nGrids, len(self.eps_list)))
         
         # Start stopwatch
         tic = time.time()
         
         # Value function iteration
-        while i < max_iter & diff > tol:
+        while (i < max_iter) & (diff > tol):
             V_pre = V_post.copy()
             
             # Value function iteration part
             for j in range(self.nGrids):
                 for r in range(len(self.eps_list)):
                     V_post[j, r], policy_func[j, r] = self.eval_value_func(j, r, V_pre, penalty)
-            diff = abs(max(V_post - V_pre))
+            diff = (np.abs(V_post - V_pre)).max()
+            
             
             # Modified policy function iteration part
             if is_modified_policy_iter:
@@ -238,7 +237,7 @@ class GHHModel:
                     n_h = n_h,
                     penalty = penalty
                 )
-                diff = abs(max(V_post - V_pre))
+                diff = (np.abs(V_post - V_pre)).max()
             
             # Proceed the iteration counter
             i+=1 
@@ -272,7 +271,7 @@ class GHHModel:
         A        = self.A
         B        = self.B
         nGrids   = self.nGrids
-        k_grids  = self.k_grids
+        k_grid   = self.k_grids
         prob_r   = self.prob
         eps_list = self.eps_list
         
@@ -281,13 +280,13 @@ class GHHModel:
         for i in range(n_h):
             V_pre = V_post.copy()
             for j in range(nGrids):
-                k = k_grids[j]
+                k = k_grid[j]
                 for r in range(len(eps_list)):
                     eps = eps_list[r]
                     
                     # "optimal" capital stock
                     k_tmrw_idx = policy_func[j, r]
-                    k_tmrw = k_grids[k_tmrw_idx]
+                    k_tmrw = k_grid[k_tmrw_idx]
                     
                     # Optimal utilization rate and labor
                     h_hat, l_hat = self.find_optimal_h_l(k, eps)
@@ -302,11 +301,11 @@ class GHHModel:
                     # the value inside the brackets in utility function
                     u = c - (l_hat**(1+theta)) / (1+theta)
                     
-                    if u < 0:
+                    if u <= 0:
                         V_post[j, r] = penalty
                     else:
                         u = 1/(1-gamma) * u**(1-gamma)
-                        V_post[j, r] = u + beta * V_pre[k_tmrw_idx, ] * (prob_r[r, ]).T
+                        V_post[j, r] = u + beta * np.dot(V_pre[k_tmrw_idx, :], prob_r[:, r])
         return V_post
 
 
