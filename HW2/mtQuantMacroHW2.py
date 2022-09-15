@@ -76,6 +76,7 @@ class GHHModel:
                         l_min =  0.0, # lower bound of labor input
                         l_max = 50.0  # upper bound of labor input
                         ):
+        # TODO! We can obtain the closed solutions of h and l. Rewrite this method with them.
         """
         find_argmax returns the optimal utilization rate (h_hat) and the labor
         input (l_hat) given the capital stock and investment-specific 
