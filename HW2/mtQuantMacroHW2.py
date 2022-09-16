@@ -128,8 +128,8 @@ class GHHModel:
                         k_idx, # index for the capital stock today 
                         eps_idx, # index for the shock realized today
                         V_tmrw, # tomorrow's values (depending on k')
-                        penalty, # punitive value if any violation happens
                         is_concave = False, # if true, exploit concavity
+                        starting_grid = 0,
                         ):
         """
         eval_value_func evaluates today's value based on the given
@@ -152,58 +152,68 @@ class GHHModel:
         eps    = self.eps_list[eps_idx]
         
         # Allocate memory for the vector of possible today's value
-        possible_V_td = np.ones((nGrids, ))
+        possible_V_td = np.empty((nGrids, ))
+        possible_V_td[:]= np.nan
         
         # Find the optimal utilization rate and the optimal
         # labor input under the given k and epsilon
         h_hat, l_hat = self.find_optimal_h_l(k_idx, eps_idx)
         
-        # Calculate the optimal consumption depending on k',
-        # under the given k and epsilon and the computed 
-        # h_hat and l_hat
-        c_list = (
-                 A * (k*h_hat)**alpha * l_hat**(1-alpha)
-                 - k_grid * np.exp(-eps)
-                 + k * (1 - B * h_hat**omega / omega) * np.exp(-eps)
+        count=0
+        for i in range(int(starting_grid), nGrids, 1):
+            # capital stock tomorrow
+            k_tmrw = k_grid[i]
+            
+            # Calculate the optimal consumption depending on k',
+            c_i = (
+                A * (k*h_hat)**alpha * l_hat**(1-alpha)
+                - k_tmrw * np.exp(-eps)
+                + k * (1 - B * h_hat**omega / omega) * np.exp(-eps)
                 )
         
-        # Calculate the inside of brackets in the utility function
-        u_list = c_list - (l_hat**(1+theta)) / (1+theta)
-        
-        # Check if the inside is positive
-        # Otherwise, cannot compute powers for some gamma values
-        #   e.g. (-0.5)**(0.2) is not defined in real numbers
-        is_computable =  (u_list > 0)
-        self.is_computable = is_computable
-        
-        # Update the computable elements in possible today's value vector
-        u_list[is_computable] = 1/(1-gamma) * (u_list[is_computable])**(1-gamma)
-        
-        self.u_list = u_list
-        
-        possible_V_td[is_computable] = (
-            u_list[is_computable] 
-            + beta * np.dot(V_tmrw[is_computable, :], prob_r)
-            ) 
-        
-        # Set the un-computable elements to penalty      
-        possible_V_td[is_computable==False] = penalty
-        
+            # Calculate the inside of brackets in the utility function
+            u_i = c_i - (l_hat**(1+theta)) / (1+theta)
+
+                    
+            # Check if the inside is positive
+            # Otherwise, cannot compute powers for some gamma values
+            #   e.g. (-0.5)**(0.2) is not defined in real numbers
+            if u_i > 0:
+                count+=1
+                # calculate corresponding value if the inside is positive
+                # Otherwise, do nothing (leave the value at NaN)
+                u_i = 1/(1-gamma) * u_i**(1-gamma)
+                possible_V_td[i] = u_i + beta * np.dot(V_tmrw[i, :], prob_r)
+                
+            if is_concave and (i > 0):
+                if possible_V_td[i - 1] > possible_V_td[i]:
+                # If the possible value decreases from that in the previous 
+                # loop (and concavity is satisfied), stop calculating V
+                    break
+                            
         # take the maximum in the possible today's value vector
-        k_tmrw_idx = possible_V_td.argmax()
+        self.count = count
+        self.u_i = u_i
+        self.V_tmrw = V_tmrw
+        self.possible_V_td = possible_V_td
+        self.k_idx = k_idx
+        self.eps_idx= eps_idx
+        self.i= i
+        self.starting_grid = starting_grid
+        k_tmrw_idx = np.nanargmax(possible_V_td)
         V_td_k_eps = possible_V_td[k_tmrw_idx]   
                 
         return V_td_k_eps, k_tmrw_idx
     
     
     def value_func_iter(self,
-                        V_init   = np.NaN,
+                        V_init   = np.nan,
                         tol      = 10E-5,
                         max_iter = 1000,
+                        is_concave = False,  # if true, exploit concavity
                         is_monotone = False, # if true, exploit monotonicity
                         is_modified_policy_iter = False, # if true, implement modified policy itereation
                         n_h = 10,
-                        penalty = -500 # punitive value if any violation happens
                         ):
         # if initial guess for V is not given, start with zero matrix
         if np.isnan(V_init):
@@ -215,18 +225,22 @@ class GHHModel:
         V_post = V_init.copy()
         policy_func = np.zeros((self.nGrids, len(self.eps_list)))
         
+        
         # Start stopwatch
         tic = time.time()
         
         # Value function iteration
-        while (i < max_iter) & (diff > tol):
+        while (i < max_iter) and (diff > tol):
             V_pre = V_post.copy()
             
             # Value function iteration part
-            for j in range(self.nGrids):
-                for r in range(len(self.eps_list)):
-                    V_post[j, r], policy_func[j, r] = self.eval_value_func(j, r, V_pre, penalty)
-            diff = (np.abs(V_post - V_pre)).max()
+            for r in range(len(self.eps_list)):
+                starting_grid = 0
+                for j in range(self.nGrids):            
+                    V_post[j, r], policy_func[j, r] = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
+                    if is_monotone:
+                        starting_grid = policy_func[j, r]
+            diff = np.nanmax((np.abs(V_post - V_pre)))
             
             
             # Modified policy function iteration part
@@ -237,10 +251,9 @@ class GHHModel:
                 V_post = self.modified_policy_func_iter(
                     V_init = V_post,
                     policy_func = policy_func,
-                    n_h = n_h,
-                    penalty = penalty
+                    n_h = n_h
                 )
-                diff = (np.abs(V_post - V_pre)).max()
+                diff = np.nanmax(np.abs(V_post - V_pre))
             
             # Proceed the iteration counter
             i+=1 
@@ -264,7 +277,6 @@ class GHHModel:
                                 V_init, # tomorrow's value prior to policy iteration
                                 policy_func, # policy function obtained in the previous step
                                 n_h, # # of iterations
-                                penalty,
                                 ):
         alpha    = self.alpha
         beta     = self.beta
@@ -305,7 +317,7 @@ class GHHModel:
                     u = c - (l_hat**(1+theta)) / (1+theta)
                     
                     if u <= 0:
-                        V_post[j, r] = penalty
+                        V_post[j, r] = np.nan
                     else:
                         u = 1/(1-gamma) * u**(1-gamma)
                         V_post[j, r] = u + beta * np.dot(V_pre[k_tmrw_idx, :], prob_r[:, r])
