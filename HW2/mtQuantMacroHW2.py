@@ -174,10 +174,13 @@ class GHHModel:
         # Otherwise, cannot compute powers for some gamma values
         #   e.g. (-0.5)**(0.2) is not defined in real numbers
         is_computable =  (u_list > 0)
+        self.is_computable = is_computable
         
         # Update the computable elements in possible today's value vector
         u_list[is_computable] = 1/(1-gamma) * (u_list[is_computable])**(1-gamma)
-              
+        
+        self.u_list = u_list
+        
         possible_V_td[is_computable] = (
             u_list[is_computable] 
             + beta * np.dot(V_tmrw[is_computable, :], prob_r)
@@ -196,11 +199,11 @@ class GHHModel:
     def value_func_iter(self,
                         V_init   = np.NaN,
                         tol      = 10E-5,
-                        max_iter = 10000,
+                        max_iter = 1000,
                         is_monotone = False, # if true, exploit monotonicity
                         is_modified_policy_iter = False, # if true, implement modified policy itereation
                         n_h = 10,
-                        penalty = -500.0, # punitive value if any violation happens
+                        penalty = -500 # punitive value if any violation happens
                         ):
         # if initial guess for V is not given, start with zero matrix
         if np.isnan(V_init):
@@ -232,7 +235,7 @@ class GHHModel:
                     # if already converged, exit without policy iteration
                     break
                 V_post = self.modified_policy_func_iter(
-                    V_tmrw = V_post,
+                    V_init = V_post,
                     policy_func = policy_func,
                     n_h = n_h,
                     penalty = penalty
@@ -271,7 +274,7 @@ class GHHModel:
         A        = self.A
         B        = self.B
         nGrids   = self.nGrids
-        k_grid   = self.k_grids
+        k_grid   = self.k_grid
         prob_r   = self.prob
         eps_list = self.eps_list
         
@@ -285,7 +288,7 @@ class GHHModel:
                     eps = eps_list[r]
                     
                     # "optimal" capital stock
-                    k_tmrw_idx = policy_func[j, r]
+                    k_tmrw_idx = int(policy_func[j, r])
                     k_tmrw = k_grid[k_tmrw_idx]
                     
                     # Optimal utilization rate and labor

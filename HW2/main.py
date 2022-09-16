@@ -34,5 +34,3 @@ print("\n",
 # Generate a GHH model instance
 GHH_Qa = GHHModel()
 GHH_Qa.value_func_iter()
-
-
