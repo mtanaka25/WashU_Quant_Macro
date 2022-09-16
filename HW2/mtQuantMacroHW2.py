@@ -62,67 +62,66 @@ class GHHModel:
         self.nGrids = nGrids
         self.k_grid = k_grid
         self.prob   = prob
-        self.eps_list = eps_list        
-        
-    def find_optimal_h_l(self, 
-                        k, # capital stock today 
-                        eps, # shock realized today
-                        h_min =  0.0, # lower bound of utilixation rate
-                        h_max =  1.0, # upper bound of utilixation rate 
-                                      # (Note h is in [0,1])
-                        l_min =  0.0, # lower bound of labor input
-                        l_max = 50.0  # upper bound of labor input
-                        ):
-        # TODO! We can obtain the closed solutions of h and l. Rewrite this method with them.
-        """
-        find_argmax returns the optimal utilization rate (h_hat) and the labor
-        input (l_hat) given the capital stock and investment-specific 
-        technology shock today
-        """
-        # load necessary parameter values from instance attributes
-        alpha  = self.alpha
-        theta  = self.theta
-        omega  = self.omega
-        A      = self.A
-        B      = self.B
-        nGrids = self.nGrids
-        
-        # Prepare grid points for utilization rate
-        h_grid = np.linspace(h_min, h_max, nGrids)
-        if h_min == 0:
-            h_grid[0] = 0.001 * h_grid[1]
-        elif h_min < 0:
-            raise Exception('The lower bound of h is expected greater than zero.')
-        
-        # Prepare grid points for labor input
-        l_grid = np.linspace(l_min, l_max, nGrids)
-        if l_min == 0:
-            l_grid[0] = 0.001 * l_grid[1]
-        elif l_min < 0:
-            raise Exception('The lower bound of l is expected should be greater than zero.')
-        
-        # Convert the grids from 1-D form to 2-D form.
-        # This enables matrix calculation, which prevents excess usage of for-loops
-        h_grid = np.reshape(h_grid, (nGrids, 1))
-        l_grid = np.reshape(l_grid, (1, nGrids))
-        
-        # Calculate the possible values of the objective function at once
-        obj_func_val = (
-                         A * (k*h_grid)**alpha * l_grid**(1-alpha)
-                       + k * (1 - B * h_grid**omega / omega) * np.exp(-eps)
-                       - l_grid**(1+theta) / (1+theta)
-                       )
-        
-        # Find the maximum enty of obj_func_val
-        # Convert the return of argmax (int) into a coordinate array (tuple of ints)
-        idx0, idx1 = np.unravel_index(np.argmax(obj_func_val, axis = None), 
-                                      obj_func_val.shape)
-        
-        h_hat = h_grid[idx0, 0] # Pick up the optimal utilization rate
-        l_hat = l_grid[0, idx1] # Pick up the optimal labor input
-        
-        return h_hat, l_hat
+        self.eps_list = eps_list 
+            
+    def optimal_h(self, k, eps):
+        alpha = self.alpha
+        theta = self.theta
+        A     = self.A
+        B     = self.B
+        omega = self.omega
+        h_hat = (
+            alpha 
+            * (1-alpha)**((1-alpha)/(alpha+theta)) 
+            * A**((1-alpha)/(alpha+theta))
+            * k**(theta * (alpha-1)/(alpha+theta)) 
+            * B**(-1) 
+            * np.exp(-eps)
+            ) **((alpha+theta)/(omega*(alpha+theta) - alpha *(1+theta)))
+        return h_hat
     
+    def optimal_l(self, k, eps):
+        alpha = self.alpha
+        theta = self.theta
+        A     = self.A
+        B     = self.B
+        omega = self.omega
+        l_hat = ( (1-alpha) * A * k**(alpha) )** (1/(alpha + theta)) \
+                * (
+                   alpha 
+                   * (1-alpha)**((1-alpha)/(alpha+theta))
+                   * A** ((1-alpha)/(alpha+theta))
+                   * k**(theta * (alpha-1)/(alpha+theta))
+                   * B**(-1)
+                   * np.exp(-eps)
+                  )**(alpha/(omega*(alpha+theta) - alpha *(1+theta)))
+        return l_hat
+    
+    def consumption(self, k, eps, h_hat, l_hat, k_tmrw):
+        alpha = self.alpha
+        A     = self.A
+        B     = self.B
+        omega = self.omega
+        cons = (
+                A * (k*h_hat)**alpha * l_hat**(1-alpha)
+                - k_tmrw * np.exp(-eps)
+                + k * (1 - B * h_hat**omega / omega) * np.exp(-eps)
+                )
+        return cons
+    
+    def utility(self, k, eps, h_hat, l_hat, k_tmrw):
+        theta = self.theta
+        gamma = self.gamma
+
+        cons = self.consumption(k, eps, h_hat, l_hat, k_tmrw)
+        
+        u_inside = cons - (l_hat**(1+theta)) / (1+theta)
+        if u_inside > 0:
+            u = 1/(1-gamma) * u_inside**(1-gamma)
+        else:
+            u =np.nan
+            
+        return u   
     
     def eval_value_func(self, 
                         k_idx, # index for the capital stock today 
@@ -138,13 +137,7 @@ class GHHModel:
         capital stock tomorrow (k'), which is optimally chosen today.
         """
         # load necessary parameter values from instance attributes
-        alpha  = self.alpha
         beta   = self.beta
-        theta  = self.theta
-        omega  = self.omega
-        gamma  = self.gamma
-        A      = self.A
-        B      = self.B
         nGrids = self.nGrids
         k_grid = self.k_grid
         prob_r = self.prob[:, eps_idx]
@@ -157,33 +150,17 @@ class GHHModel:
         
         # Find the optimal utilization rate and the optimal
         # labor input under the given k and epsilon
-        h_hat, l_hat = self.find_optimal_h_l(k_idx, eps_idx)
+        h_hat = self.optimal_h(k, eps)
+        l_hat = self.optimal_l(k, eps)
         
-        count=0
         for i in range(int(starting_grid), nGrids, 1):
             # capital stock tomorrow
             k_tmrw = k_grid[i]
             
             # Calculate the optimal consumption depending on k',
-            c_i = (
-                A * (k*h_hat)**alpha * l_hat**(1-alpha)
-                - k_tmrw * np.exp(-eps)
-                + k * (1 - B * h_hat**omega / omega) * np.exp(-eps)
-                )
-        
-            # Calculate the inside of brackets in the utility function
-            u_i = c_i - (l_hat**(1+theta)) / (1+theta)
-
-                    
-            # Check if the inside is positive
-            # Otherwise, cannot compute powers for some gamma values
-            #   e.g. (-0.5)**(0.2) is not defined in real numbers
-            if u_i > 0:
-                count+=1
-                # calculate corresponding value if the inside is positive
-                # Otherwise, do nothing (leave the value at NaN)
-                u_i = 1/(1-gamma) * u_i**(1-gamma)
-                possible_V_td[i] = u_i + beta * np.dot(V_tmrw[i, :], prob_r)
+            u_i = self.utility(k, eps, h_hat, l_hat, k_tmrw)
+                  
+            possible_V_td[i] = u_i + beta * np.dot(V_tmrw[i, :], prob_r)
                 
             if is_concave and (i > 0):
                 if possible_V_td[i - 1] > possible_V_td[i]:
@@ -192,7 +169,6 @@ class GHHModel:
                     break
                             
         # take the maximum in the possible today's value vector
-        self.count = count
         self.u_i = u_i
         self.V_tmrw = V_tmrw
         self.possible_V_td = possible_V_td
@@ -278,13 +254,7 @@ class GHHModel:
                                 policy_func, # policy function obtained in the previous step
                                 n_h, # # of iterations
                                 ):
-        alpha    = self.alpha
         beta     = self.beta
-        theta    = self.theta
-        omega    = self.omega
-        gamma    = self.gamma
-        A        = self.A
-        B        = self.B
         nGrids   = self.nGrids
         k_grid   = self.k_grid
         prob_r   = self.prob
@@ -304,23 +274,13 @@ class GHHModel:
                     k_tmrw = k_grid[k_tmrw_idx]
                     
                     # Optimal utilization rate and labor
-                    h_hat, l_hat = self.find_optimal_h_l(k, eps)
+                    h_hat = self.optimal_h(k, eps)
+                    l_hat = self.optimal_l(k, eps)
                     
-                    # optimal consumption
-                    c = (
-                        A * (k*h_hat)**alpha * l_hat**(1-alpha)
-                        - k_tmrw * np.exp(-eps)
-                        + k * (1 - B * h_hat**omega / omega) * np.exp(-eps)
-                        )
+                    # flow utility
+                    u_jr = self.utility(k, eps, h_hat, l_hat, k_tmrw)
                     
-                    # the value inside the brackets in utility function
-                    u = c - (l_hat**(1+theta)) / (1+theta)
-                    
-                    if u <= 0:
-                        V_post[j, r] = np.nan
-                    else:
-                        u = 1/(1-gamma) * u**(1-gamma)
-                        V_post[j, r] = u + beta * np.dot(V_pre[k_tmrw_idx, :], prob_r[:, r])
+                    V_post[j, r] = u_jr + beta * np.dot(V_pre[k_tmrw_idx, :], prob_r[:, r])
         return V_post
 
 
