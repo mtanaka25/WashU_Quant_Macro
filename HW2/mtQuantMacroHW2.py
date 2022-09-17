@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import time
+import datetime
 import seaborn as sns
 from copy import deepcopy
 from tabulate import tabulate
@@ -32,8 +33,8 @@ class GHHModel:
                  sigma  = 0.060, # s.d. of the stochastic process
                  lmbd   = 0.400, # Autocorrelation of the stochastic process
                  nGrids = 100,   # # of grid points for k
-                 k_min  = 0.500, # the lower bound of k
-                 k_max  = 5.000  # the upper bound of k
+                 k_min  = 1.000, # the lower bound of k
+                 k_max  = 3.000  # the upper bound of k
                  ):
         k_grid = np.linspace(k_min, k_max, nGrids)
         if k_min == 0:
@@ -132,6 +133,15 @@ class GHHModel:
             u =np.nan
             
         return u   
+
+    
+    def production(self, k, h_hat, l_hat):
+        alpha = self.alpha
+        A = self.A
+        y = A * (k * h_hat)**alpha * l_hat**(1-alpha)
+        return y
+
+        
     
     def eval_value_func(self, 
                         k_idx, # index for the capital stock today 
@@ -191,15 +201,13 @@ class GHHModel:
     
     def value_func_iter(self,
                         V_init   = np.nan,
-                        tol      = 10E-5,
+                        tol      = 10E-10,
                         max_iter = 1000,
                         is_concave = False,  # if true, exploit concavity
                         is_monotone = False, # if true, exploit monotonicity
                         is_modified_policy_iter = False, # if true, implement modified policy itereation
                         n_h = 10,
                         ):
-        k_grid = self.k_grid
-        
         # if initial guess for V is not given, start with zero matrix
         if np.isnan(V_init):
             V_init = np.zeros((self.nGrids, len(self.eps_list)))
@@ -208,7 +216,7 @@ class GHHModel:
         i      = 0
         diff   = 1.0
         V_post = deepcopy(V_init)
-        policy_idx_mat = np.zeros((self.nGrids, len(self.eps_list)))
+        k_tmrw_idx_mat = np.zeros((self.nGrids, len(self.eps_list)))
         
         
         # Start stopwatch
@@ -222,9 +230,10 @@ class GHHModel:
             for r in range(len(self.eps_list)):
                 starting_grid = 0
                 for j in range(self.nGrids):            
-                    V_post[j, r], policy_idx_mat[j, r] = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
+                    V_post[j, r], k_tmrw_idx_mat[j, r] \
+                        = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
                     if is_monotone:
-                        starting_grid = policy_idx_mat[j, r]
+                        starting_grid = k_tmrw_idx_mat[j, r]
             diff = np.nanmax((np.abs(V_post - V_pre)))
             
             
@@ -235,7 +244,7 @@ class GHHModel:
                     break
                 V_post = self.modified_policy_func_iter(
                     V_init = V_post,
-                    policy_func = policy_idx_mat,
+                    k_tmrw_idx_mat = k_tmrw_idx_mat,
                     n_h = n_h
                 )
                 diff = np.nanmax(np.abs(V_post - V_pre))
@@ -249,24 +258,18 @@ class GHHModel:
         
         # Stop stopwatch
         toc = time.time()
-        elapsed_time = toc - tic
-        
-        policy_func = [k_grid[int(policy_idx_mat[i, r])] 
-                              for i in range(self.nGrids) 
-                              for r in range(len(self.eps_list))]
-        policy_func = np.array(policy_func)
-        policy_func = policy_func.reshape(self.nGrids, len(self.eps_list))
+        elapsed_time = datetime.timedelta(seconds = (toc - tic))
         
         # Save result as instance attributes
-        self.elapsed_time = elapsed_time
-        self.V            = V_post
-        self.policy_func  = policy_func
+        self.elapsed_time   = elapsed_time
+        self.V              = V_post
+        self.k_tmrw_idx_mat = k_tmrw_idx_mat
     
     
     def modified_policy_func_iter(
                                 self, 
                                 V_init, # tomorrow's value prior to policy iteration
-                                policy_func, # policy function obtained in the previous step
+                                k_tmrw_idx_mat, # matrix of optimal k' indeces obtained in the previous step
                                 n_h, # # of iterations
                                 ):
         beta     = self.beta
@@ -285,7 +288,7 @@ class GHHModel:
                     eps = eps_list[r]
                     
                     # "optimal" capital stock
-                    k_tmrw_idx = int(policy_func[j, r])
+                    k_tmrw_idx = int(k_tmrw_idx_mat[j, r])
                     k_tmrw = k_grid[k_tmrw_idx]
                     
                     # Optimal utilization rate and labor
@@ -298,6 +301,50 @@ class GHHModel:
                     V_post[j, r] = u_jr + beta * np.dot(V_pre[k_tmrw_idx, :], prob_r[:, r])
         return V_post
     
+    
+    def calc_policy_fuction(self):
+        # construct the matrix of today's k
+        k_mat = np.array([[k_i, k_i] for k_i in self.k_grid])
+
+        # construct the matrix of today's epsilon 
+        eps_mat = np.array([self.eps_list for k_i in self.k_grid])
+
+        # The above two steps are redundant. But I do them to make the 
+        # calculations here more intuitive.
+        
+        # we've already worked on the optimal h and l
+        h_hat_mat = self.h_hat_mat
+        l_hat_mat = self.l_hat_mat
+        
+        # Optimal output matrix
+        y_mat = self.production(k = k_mat, 
+                                h_hat = h_hat_mat,
+                                l_hat = l_hat_mat)
+                
+        # Optimal k' matrix
+        k_tmrw_mat = [self.k_grid[int(self.k_tmrw_idx_mat[i, r])] 
+                              for i in range(self.nGrids) 
+                              for r in range(len(self.eps_list))]
+        k_tmrw_mat = np.array(k_tmrw_mat)
+        k_tmrw_mat = k_tmrw_mat.reshape(self.nGrids, len(self.eps_list))
+        
+        # Optimal consumption matrix
+        c_mat = self.consumption(k = k_mat,
+                                 eps = eps_mat,
+                                 h_hat = h_hat_mat,
+                                 l_hat = l_hat_mat,
+                                 k_tmrw = k_tmrw_mat)
+        
+        # Optimal (gross) investment matrix
+        x_mat = y_mat - c_mat
+        
+        # store them as instance attributes
+        self.y_mat = y_mat
+        self.k_tmrw_mat = k_tmrw_mat
+        self.c_mat = c_mat
+        self.x_mat = x_mat
+        
+        
     def plot_value_and_policy_functions(self,
                             is_save = True, 
                             fname = 'GHH_result.png'):
@@ -305,25 +352,197 @@ class GHHModel:
         sns.set()
         fig, ax = plt.subplots(2, 1, figsize=(10, 12))
         
-        ax[0].plot(k, self.V[:, 0], 
-              label='epsilon = {:.1f}'.format(self.eps_list[0]))
-        ax[0].plot(k, self.V[:, 1], 
-              label='epsilon = {:.1f}'.format(self.eps_list[1]))
+        ax[0].plot(k, self.V[:, 0], c = 'red',
+              label='epsilon = {:.2f}'.format(self.eps_list[0]))
+        ax[0].plot(k, self.V[:, 1], c = 'blue',
+              label='epsilon = {:.2f}'.format(self.eps_list[1]))
         ax[0].set_title('Value function')
         ax[0].legend(frameon=False)
         
-        ax[1].plot(k, self.policy_func[:, 0], 
-              label='epsilon = {:.1f}'.format(self.eps_list[0]))
-        ax[1].plot(k, self.policy_func[:, 1], 
-              label='epsilon = {:.1f}'.format(self.eps_list[1]))
-        ax[1].plot(k,k, label="k' = k")
+        ax[1].plot(k, self.k_tmrw_mat[:, 0],  c = 'red',
+              label='epsilon = {:.2f}'.format(self.eps_list[0]))
+        ax[1].plot(k, self.k_tmrw_mat[:, 1], c = 'blue',
+              label='epsilon = {:.2f}'.format(self.eps_list[1]))
+        ax[1].plot(k, k, linewidth = 0.8, c = 'black', linestyle='dashed', label="k' = k")
         ax[1].set_title('Policy function')
         ax[1].legend(frameon=False)
         
         if is_save:
             plt.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.show()
+    
+    
+    def build_transition_matrix(self):
+        k_tmrw_idx_mat = self.k_tmrw_idx_mat
+        prob           = self.prob
+        nGrids         = self.nGrids
+        
+        # Make a mapping matrix from k to k' (for each epsilon)
+        k_mapping_state0 = np.zeros((nGrids, nGrids)) # for epsilon = eps_list[0]
+        k_mapping_state1 = np.zeros((nGrids, nGrids)) # for epsilon = eps_list[1]
+        for k in range(nGrids):
+            k_mapping_state0[k, int(k_tmrw_idx_mat[k, 0])] = 1
+            k_mapping_state1[k, int(k_tmrw_idx_mat[k, 1])] = 1
+        
+        # Build the transition matrix by taking the Kronecker product of
+        # the mapping matrices and epsilon's transition probability.
+        trans_mat_upper = np.kron((prob[:, 0]).T, k_mapping_state0)
+        trans_mat_lower = np.kron((prob[:, 1]).T, k_mapping_state1)
+        trans_mat = np.concatenate([trans_mat_upper, trans_mat_lower], axis=0)
+        trans_mat = trans_mat.T
+        
+        self.trans_mat = trans_mat 
+    
+    
+    def obtain_stationary_dist(self, 
+                                init_dist = np.nan,
+                                max_iter  = 10000,
+                                tol       = 10E-5):
+        # load the transition matrix (if not prepared, build it)
+        if not hasattr(self, 'trans_mat'):
+            self.build_transition_matrix()
+        trans_mat = self.trans_mat
+        nGrids    = self.nGrids
+        n_states  = len(trans_mat)
+        
+        # prepare the initial distribution
+        if np.isnan(init_dist):
+            # if any initial distribution is given, use the uniform dist
+            init_dist = np.ones((n_states, 1))
+            init_dist = init_dist / n_states
+        
+        # initialize the Markov Chain iteration
+        i = 0
+        diff = 1.0
+        k_eps_dist_post = deepcopy(init_dist)
+        
+        while (i < max_iter) and (diff > tol):
+            # Use the latest distribution as input
+            k_eps_dist_pre  = deepcopy(k_eps_dist_post)
+            
+            # Update the Markov Chain
+            k_eps_dist_post = trans_mat @ k_eps_dist_pre
+            
+            # Calculate the improvement
+            diff = max(abs(k_eps_dist_post - k_eps_dist_pre))
+            
+            if i == 9:
+                k_eps_dist_10iter = k_eps_dist_post.reshape((nGrids, -1), order='F')
+                self.k_eps_dist_10iter = k_eps_dist_10iter
+            
+            # Advance the iteration counter
+            i += 1
+        
+        # Check if max_iter is binding
+        if diff > tol:
+            raise Exception('Markov chain iteration reached max_iter. The solution could be incorrect.')
+        
+        k_eps_dist_post = k_eps_dist_post.reshape((nGrids, -1), order='F')
+        init_dist       = init_dist.reshape((nGrids, -1), order='F')
+        
+        self.k_eps_init_dist = init_dist
+        self.k_eps_stationary_dist = k_eps_dist_post
+    
+    
+    def plot_stationary_dist(self,
+                            n_bins  = 100,
+                            is_save = True, 
+                            fname = 'Stationary_dist_result.png'):
+        sns.set()
+        
+        k = self.k_grid
+        dist = self.k_eps_stationary_dist * 100
+        init_dist   = self.k_eps_init_dist * 100
+        dist_10iter = self.k_eps_dist_10iter * 100        
+        k_vals      = [np.mean(k[10*i:10*i+9]) for i in range(100)]
+        bin_width   = k_vals[2] - k_vals[1]
+        
+        stationary_dist_state0 = [sum(dist[10*i:10*i+9, 0]) for i in range(100)]
+        stationary_dist_state1 = [sum(dist[10*i:10*i+9, 1]) for i in range(100)]
+        init_dist_state0 = [sum(init_dist[10*i:10*i+9, 0]) for i in range(100)]
+        init_dist_state1 = [sum(init_dist[10*i:10*i+9, 1]) for i in range(100)]
+        dist_10iter_state0 = [sum(dist_10iter[10*i:10*i+9, 0]) for i in range(100)]
+        dist_10iter_state1 = [sum(dist_10iter[10*i:10*i+9, 1]) for i in range(100)]  
+        
+        fig, ax = plt.subplots(2, 1, figsize=(10, 12))
+        
+        ax[0].bar(k_vals, stationary_dist_state0, 
+                  width=bin_width, label="stationary dist.")
+        ax[0].plot(k_vals, init_dist_state0, 
+                   linestyle='dashed', c='black', label="initial dist.")
+        ax[0].plot(k_vals, dist_10iter_state0, 
+                   c='green', label="after 10 iterations")
+        ax[0].set_title('Distribution of k (epsilon = {:.2f})'.format(self.eps_list[0]))
+        ax[0].legend(frameon=False)
+        
+        ax[1].bar(k_vals, stationary_dist_state1, 
+                  width=bin_width, label="stationary dist.")
+        ax[1].plot(k_vals, init_dist_state1, 
+                   linestyle='dashed', c='black', label="initial dist.")
+        ax[1].plot(k_vals, dist_10iter_state1, 
+                   c='green', label="after 10 iterations")
+        ax[1].set_title('Distribution of k (epsilon = {:.2f})'.format(self.eps_list[1]))
+        ax[1].legend(frameon=False)
+        
+        if is_save:
+            plt.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.show()
 
+
+    def calc_moments(self, x_mat, y_mat):
+        k_eps_dist = self.k_eps_stationary_dist
+        
+        # calculate mean
+        mean_x = np.sum(x_mat * k_eps_dist)
+        mean_y = np.sum(y_mat * k_eps_dist)
+        
+        # calculate standard deviation
+        x_dev = x_mat - mean_x
+        var_x = np.sum(x_dev**2 * k_eps_dist)
+        std_x = var_x**(0.5)
+        
+        y_dev = y_mat - mean_y
+        var_y = np.sum(y_dev**2 * k_eps_dist)
+        std_y = var_y**(0.5)
+        
+        # calculate correlation between x and y
+        corr_xy = np.sum(x_dev * y_dev * k_eps_dist)/(std_x * std_y)
+        
+        return std_x, corr_xy
+    
+    
+    def get_stats_stationary_dist_stats(self):
+        # output
+        std_y, corr_yy = self.calc_moments(self.y_mat, self.y_mat)
+        
+        # consumption
+        std_c, corr_cy = self.calc_moments(self.c_mat, self.y_mat)
+
+        # (gross) investment
+        std_x, corr_xy = self.calc_moments(self.x_mat, self.y_mat)
+
+        # labor
+        std_l, corr_ly = self.calc_moments(self.l_hat_mat, self.y_mat)
+
+        # TFP
+        # -- in this model, TFP (= A) is a constant
+        std_A, corr_Ay = 0, 0
+
+        # utilization
+        std_h, corr_hy = self.calc_moments(self.h_hat_mat, self.y_mat)
+        
+        result_table = [
+                        ['Output (y)'      , std_y, corr_yy],
+                        ['Consumption (c)' , std_c, corr_cy],
+                        ['Investment (y-c)', std_x, corr_xy],
+                        ['Labor (l)'       , std_l, corr_ly],
+                        ['TFP (A)'         , std_A, corr_Ay],
+                        ['Utilization (h)' , std_h, corr_hy]
+                        ]
+        header = ['Variable', 'Standard deviation', 'Correlation with output']
+        print(tabulate(result_table, headers=header))
+        
+        
 
 class DataStatsGenerator:
     def __init__(self,
