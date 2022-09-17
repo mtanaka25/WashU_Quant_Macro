@@ -14,7 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import time
-import seaborn
+import seaborn as sns
+from copy import deepcopy
 from tabulate import tabulate
 from fredapi import Fred
 from statsmodels.tsa.filters.hp_filter import hpfilter
@@ -31,7 +32,7 @@ class GHHModel:
                  sigma  = 0.060, # s.d. of the stochastic process
                  lmbd   = 0.400, # Autocorrelation of the stochastic process
                  nGrids = 100,   # # of grid points for k
-                 k_min  = 0.000, # the lower bound of k
+                 k_min  = 0.500, # the lower bound of k
                  k_max  = 5.000  # the upper bound of k
                  ):
         k_grid = np.linspace(k_min, k_max, nGrids)
@@ -42,7 +43,8 @@ class GHHModel:
             raise Exception('The lower bound of k is expected greater than zero.')
         
         # list of the possible shock values
-        eps_list = [sigma, -sigma]       
+        eps_list = [sigma, -sigma]
+        
         # Construct the transition matrix for the shock process
         pi11   = 0.5 * (lmbd + 1)
         pi12   = 1 - pi11
@@ -62,7 +64,15 @@ class GHHModel:
         self.nGrids = nGrids
         self.k_grid = k_grid
         self.prob   = prob
-        self.eps_list = eps_list 
+        self.eps_list = eps_list
+        
+        # construct matrices of optimal h and l 
+        k_vec   = (np.array(k_grid)).reshape(nGrids, 1)
+        eps_vec = (np.array(eps_list)).reshape(1, len(eps_list))
+        h_hat_mat = self.optimal_h(k_vec, eps_vec)
+        l_hat_mat = self.optimal_l(k_vec, eps_vec)
+        self.h_hat_mat = h_hat_mat
+        self.l_hat_mat = l_hat_mat
             
     def optimal_h(self, k, eps):
         alpha = self.alpha
@@ -76,7 +86,7 @@ class GHHModel:
             * A**((1-alpha)/(alpha+theta))
             * k**(theta * (alpha-1)/(alpha+theta)) 
             * B**(-1) 
-            * np.exp(-eps)
+            * np.exp(eps)
             ) **((alpha+theta)/(omega*(alpha+theta) - alpha *(1+theta)))
         return h_hat
     
@@ -93,7 +103,7 @@ class GHHModel:
                    * A** ((1-alpha)/(alpha+theta))
                    * k**(theta * (alpha-1)/(alpha+theta))
                    * B**(-1)
-                   * np.exp(-eps)
+                   * np.exp(eps)
                   )**(alpha/(omega*(alpha+theta) - alpha *(1+theta)))
         return l_hat
     
@@ -143,15 +153,12 @@ class GHHModel:
         prob_r = self.prob[:, eps_idx]
         k      = self.k_grid[k_idx]
         eps    = self.eps_list[eps_idx]
+        h_hat  = self.h_hat_mat[k_idx, eps_idx]
+        l_hat  = self.l_hat_mat[k_idx, eps_idx]
         
         # Allocate memory for the vector of possible today's value
         possible_V_td = np.empty((nGrids, ))
         possible_V_td[:]= np.nan
-        
-        # Find the optimal utilization rate and the optimal
-        # labor input under the given k and epsilon
-        h_hat = self.optimal_h(k, eps)
-        l_hat = self.optimal_l(k, eps)
         
         for i in range(int(starting_grid), nGrids, 1):
             # capital stock tomorrow
@@ -159,7 +166,7 @@ class GHHModel:
             
             # Calculate the optimal consumption depending on k',
             u_i = self.utility(k, eps, h_hat, l_hat, k_tmrw)
-                  
+            
             possible_V_td[i] = u_i + beta * np.dot(V_tmrw[i, :], prob_r)
                 
             if is_concave and (i > 0):
@@ -191,6 +198,8 @@ class GHHModel:
                         is_modified_policy_iter = False, # if true, implement modified policy itereation
                         n_h = 10,
                         ):
+        k_grid = self.k_grid
+        
         # if initial guess for V is not given, start with zero matrix
         if np.isnan(V_init):
             V_init = np.zeros((self.nGrids, len(self.eps_list)))
@@ -198,8 +207,8 @@ class GHHModel:
         # Initialize while-loop
         i      = 0
         diff   = 1.0
-        V_post = V_init.copy()
-        policy_func = np.zeros((self.nGrids, len(self.eps_list)))
+        V_post = deepcopy(V_init)
+        policy_idx_mat = np.zeros((self.nGrids, len(self.eps_list)))
         
         
         # Start stopwatch
@@ -207,15 +216,15 @@ class GHHModel:
         
         # Value function iteration
         while (i < max_iter) and (diff > tol):
-            V_pre = V_post.copy()
+            V_pre = deepcopy(V_post)
             
             # Value function iteration part
             for r in range(len(self.eps_list)):
                 starting_grid = 0
                 for j in range(self.nGrids):            
-                    V_post[j, r], policy_func[j, r] = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
+                    V_post[j, r], policy_idx_mat[j, r] = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
                     if is_monotone:
-                        starting_grid = policy_func[j, r]
+                        starting_grid = policy_idx_mat[j, r]
             diff = np.nanmax((np.abs(V_post - V_pre)))
             
             
@@ -226,7 +235,7 @@ class GHHModel:
                     break
                 V_post = self.modified_policy_func_iter(
                     V_init = V_post,
-                    policy_func = policy_func,
+                    policy_func = policy_idx_mat,
                     n_h = n_h
                 )
                 diff = np.nanmax(np.abs(V_post - V_pre))
@@ -242,10 +251,16 @@ class GHHModel:
         toc = time.time()
         elapsed_time = toc - tic
         
+        policy_func = [k_grid[int(policy_idx_mat[i, r])] 
+                              for i in range(self.nGrids) 
+                              for r in range(len(self.eps_list))]
+        policy_func = np.array(policy_func)
+        policy_func = policy_func.reshape(self.nGrids, len(self.eps_list))
+        
         # Save result as instance attributes
         self.elapsed_time = elapsed_time
         self.V            = V_post
-        self.policy_fuc   = policy_func
+        self.policy_func  = policy_func
     
     
     def modified_policy_func_iter(
@@ -260,10 +275,10 @@ class GHHModel:
         prob_r   = self.prob
         eps_list = self.eps_list
         
-        V_post = V_init.copy()
+        V_post = deepcopy(V_init)
         
         for i in range(n_h):
-            V_pre = V_post.copy()
+            V_pre = deepcopy(V_post)
             for j in range(nGrids):
                 k = k_grid[j]
                 for r in range(len(eps_list)):
@@ -274,15 +289,40 @@ class GHHModel:
                     k_tmrw = k_grid[k_tmrw_idx]
                     
                     # Optimal utilization rate and labor
-                    h_hat = self.optimal_h(k, eps)
-                    l_hat = self.optimal_l(k, eps)
+                    h_hat = self.h_hat_mat[j, r]
+                    l_hat = self.l_hat_mat[j, r]
                     
                     # flow utility
                     u_jr = self.utility(k, eps, h_hat, l_hat, k_tmrw)
                     
                     V_post[j, r] = u_jr + beta * np.dot(V_pre[k_tmrw_idx, :], prob_r[:, r])
         return V_post
-
+    
+    def plot_value_and_policy_functions(self,
+                            is_save = True, 
+                            fname = 'GHH_result.png'):
+        k = self.k_grid
+        sns.set()
+        fig, ax = plt.subplots(2, 1, figsize=(10, 12))
+        
+        ax[0].plot(k, self.V[:, 0], 
+              label='epsilon = {:.1f}'.format(self.eps_list[0]))
+        ax[0].plot(k, self.V[:, 1], 
+              label='epsilon = {:.1f}'.format(self.eps_list[1]))
+        ax[0].set_title('Value function')
+        ax[0].legend(frameon=False)
+        
+        ax[1].plot(k, self.policy_func[:, 0], 
+              label='epsilon = {:.1f}'.format(self.eps_list[0]))
+        ax[1].plot(k, self.policy_func[:, 1], 
+              label='epsilon = {:.1f}'.format(self.eps_list[1]))
+        ax[1].plot(k,k, label="k' = k")
+        ax[1].set_title('Policy function')
+        ax[1].legend(frameon=False)
+        
+        if is_save:
+            plt.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.show()
 
 
 class DataStatsGenerator:
