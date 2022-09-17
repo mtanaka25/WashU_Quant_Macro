@@ -20,6 +20,7 @@ from copy import deepcopy
 from tabulate import tabulate
 from fredapi import Fred
 from statsmodels.tsa.filters.hp_filter import hpfilter
+from random import random, randrange, seed
 
 class GHHModel:
     def __init__(self,
@@ -193,7 +194,7 @@ class GHHModel:
         self.eps_idx= eps_idx
         self.i= i
         self.starting_grid = starting_grid
-        k_tmrw_idx = np.nanargmax(possible_V_td)
+        k_tmrw_idx = int(np.nanargmax(possible_V_td))
         V_td_k_eps = possible_V_td[k_tmrw_idx]   
                 
         return V_td_k_eps, k_tmrw_idx
@@ -216,7 +217,7 @@ class GHHModel:
         i      = 0
         diff   = 1.0
         V_post = deepcopy(V_init)
-        k_tmrw_idx_mat = np.zeros((self.nGrids, len(self.eps_list)))
+        k_tmrw_idx_mat = np.zeros((self.nGrids, len(self.eps_list)), dtype=int)
         
         
         # Start stopwatch
@@ -288,7 +289,7 @@ class GHHModel:
                     eps = eps_list[r]
                     
                     # "optimal" capital stock
-                    k_tmrw_idx = int(k_tmrw_idx_mat[j, r])
+                    k_tmrw_idx = k_tmrw_idx_mat[j, r]
                     k_tmrw = k_grid[k_tmrw_idx]
                     
                     # Optimal utilization rate and labor
@@ -381,8 +382,8 @@ class GHHModel:
         k_mapping_state0 = np.zeros((nGrids, nGrids)) # for epsilon = eps_list[0]
         k_mapping_state1 = np.zeros((nGrids, nGrids)) # for epsilon = eps_list[1]
         for k in range(nGrids):
-            k_mapping_state0[k, int(k_tmrw_idx_mat[k, 0])] = 1
-            k_mapping_state1[k, int(k_tmrw_idx_mat[k, 1])] = 1
+            k_mapping_state0[k, k_tmrw_idx_mat[k, 0]] = 1
+            k_mapping_state1[k, k_tmrw_idx_mat[k, 1]] = 1
         
         # Build the transition matrix by taking the Kronecker product of
         # the mapping matrices and epsilon's transition probability.
@@ -455,6 +456,7 @@ class GHHModel:
         init_dist   = self.k_eps_init_dist * 100
         dist_10iter = self.k_eps_dist_10iter * 100        
         k_vals      = [np.mean(k[10*i:10*i+9]) for i in range(100)]
+        k_borders   = [(k[10*i+9] + k[10*(i+1)])/2 for i in range(99)]
         bin_width   = k_vals[2] - k_vals[1]
         
         stationary_dist_state0 = [sum(dist[10*i:10*i+9, 0]) for i in range(100)]
@@ -487,6 +489,12 @@ class GHHModel:
         if is_save:
             plt.savefig(fname, bbox_inches='tight', pad_inches=0)
         plt.show()
+        
+        # save some data for Q(h)
+        self.stationary_dist_state0 = stationary_dist_state0
+        self.stationary_dist_state1 = stationary_dist_state1
+        self.k_hist_x_axis  = k_vals
+        self.k_hist_borders = k_borders
 
 
     def calc_moments(self, x_mat, y_mat):
@@ -511,7 +519,7 @@ class GHHModel:
         return std_x, corr_xy
     
     
-    def get_stats_stationary_dist_stats(self):
+    def get_stationary_dist_stats(self):
         # output
         std_y, corr_yy = self.calc_moments(self.y_mat, self.y_mat)
         
@@ -541,8 +549,184 @@ class GHHModel:
                         ]
         header = ['Variable', 'Standard deviation', 'Correlation with output']
         print(tabulate(result_table, headers=header))
+    
+    
+    def run_time_series_simulation(self,
+                                   k_init_idx = np.nan,
+                                   n_periods  = 1100,
+                                   burnin     = 100,
+                                   fixed_seed = None,
+                                   is_save_fig = True,
+                                   fname= 'Simulated_dist_result.png'
+                                   ):
+        l_hat_mat = self.l_hat_mat
+        h_hat_mat = self.h_hat_mat
+        k_tmrw_idx_mat = self.k_tmrw_idx_mat
+
+        seed(fixed_seed) # fix the seed for future replication
+        
+        if np.isnan(k_init_idx):
+            # if initial capital is not given, choose it randomly
+            k_init_idx = randrange(0, self.nGrids)
+            
+        # Randomly draw the history of epsilon
+        eps_idx_path = [randrange(0, len(self.eps_list))
+                        for t in range(n_periods)]
+        
+        # prepare the lists where the simulated path of each variable will be stored
+        y_path = []
+        c_path = []
+        x_path = []
+        l_path = []
+        h_path = []
+        k_path = []
+        
+        k_tmrw_idx = k_init_idx
+        k_tmrw     = self.k_grid[k_init_idx]
+            
+        for t in range(n_periods):
+            # period t's state
+            eps_idx = eps_idx_path[t]
+            eps   = self.eps_list[eps_idx]
+            k_idx = deepcopy(k_tmrw_idx)
+            k     = deepcopy(k_tmrw)
+            
+            # pick up optimal h and l
+            l = l_hat_mat[k_idx, eps_idx]
+            h = h_hat_mat[k_idx, eps_idx]
+
+            # pick up optimal k'
+            k_tmrw_idx = k_tmrw_idx_mat[k_idx, eps_idx]
+            k_tmrw     = self.k_grid[k_tmrw_idx]
+            
+            # calculate output
+            y = self.production(k = k, h_hat = h, l_hat = l)
+            
+            # calculate consumption
+            c = self.consumption(k = k, 
+                                 eps = eps, 
+                                 h_hat = h, 
+                                 l_hat = l, 
+                                 k_tmrw = k_tmrw)
+            
+            # calculate (gross) investment
+            x = y - c
+            
+            # Store the calcurated values
+            y_path.append(y)
+            c_path.append(c)
+            x_path.append(x)
+            l_path.append(l)
+            h_path.append(h)
+            k_path.append(k)
+        
+        # Discard the data over the burn-in period
+        y_path = y_path[burnin: ]
+        c_path = c_path[burnin: ]
+        x_path = x_path[burnin: ]
+        l_path = l_path[burnin: ]
+        h_path = h_path[burnin: ]
+        k_path = k_path[burnin: ]
+        
+        self.plot_simulated_dist(k_path       = k_path,
+                                 eps_idx_path = eps_idx_path,
+                                 is_save      = is_save_fig,
+                                 fname        = fname)
+        
+        # output
+        std_y, corr_yy = self.calc_moments_simul(y_path, y_path)
+        
+        # consumption
+        std_c, corr_cy = self.calc_moments_simul(c_path, y_path)
+
+        # (gross) investment
+        std_x, corr_xy = self.calc_moments_simul(x_path, y_path)
+
+        # labor
+        std_l, corr_ly = self.calc_moments_simul(l_path, y_path)
+
+        # TFP
+        # -- in this model, TFP (= A) is a constant
+        std_A, corr_Ay = 0, 0
+
+        # utilization
+        std_h, corr_hy = self.calc_moments_simul(h_path, y_path)
+         
+        result_table = [
+                        ['Output (y)'      , std_y, corr_yy],
+                        ['Consumption (c)' , std_c, corr_cy],
+                        ['Investment (y-c)', std_x, corr_xy],
+                        ['Labor (l)'       , std_l, corr_ly],
+                        ['TFP (A)'         , std_A, corr_Ay],
+                        ['Utilization (h)' , std_h, corr_hy]
+                        ]
+        header = ['Variable', 'Standard deviation', 'Correlation with output']
+        print(tabulate(result_table, headers=header))       
+    
+    
+    def plot_simulated_dist(self, k_path, eps_idx_path, is_save, fname):
+        k_hist_x_axis = self.k_hist_x_axis
+        k_hist_borders = deepcopy(self.k_hist_borders)
+        k_hist_borders.append(self.k_grid[-1]) 
         
         
+        k_cumulative_num_eps0 = [
+            sum((k_path[i] <= border_i) and (eps_idx_path[i] == 0) for i in range(len(k_path)))
+            for border_i in k_hist_borders]
+        self.k_cumulative_num_eps0 =k_cumulative_num_eps0 
+        k_cumulative_num_eps0.insert(0, 0)
+        
+        k_hist_data_eps0 = [
+            (k_cumulative_num_eps0[i+1] - k_cumulative_num_eps0[i])/len(eps_idx_path)*100
+            for i in range(len(k_cumulative_num_eps0)-1)
+            ]
+
+        k_cumulative_num_eps1 = [
+            sum((k_path[i] <= border_i) and (eps_idx_path[i] == 1) for i in range(len(k_path)))
+            for border_i in k_hist_borders]
+        self.k_cumulative_num_eps1 = k_cumulative_num_eps1 
+        k_cumulative_num_eps1.insert(0, 0)
+        
+        k_hist_data_eps1 = [
+            (k_cumulative_num_eps1[i+1] - k_cumulative_num_eps1[i])/len(eps_idx_path)*100
+            for i in range(len(k_cumulative_num_eps1)-1)
+            ]
+        
+        bin_width = k_hist_x_axis[2] - k_hist_x_axis[1]
+        fig, ax = plt.subplots(2, 1, figsize=(10, 12))      
+        self.k_hist_data_eps0 = k_hist_data_eps0
+        self.k_hist_data_eps1 = k_hist_data_eps1
+        ax[0].bar(k_hist_x_axis, k_hist_data_eps0, 
+                  width=bin_width, label="Simulated dist.")
+        ax[0].plot(k_hist_x_axis, self.stationary_dist_state0, 
+                   c='green', label="Stationary dist.")
+        ax[0].set_title('Distribution of k (epsilon = {:.2f})'.format(self.eps_list[0]))
+        ax[0].legend(frameon=False)
+        
+        ax[1].bar(k_hist_x_axis, k_hist_data_eps1, 
+                  width=bin_width, label="Simulated dist.")
+        ax[1].plot(k_hist_x_axis, self.stationary_dist_state1, 
+                   c='green', label="Stationary dist.")
+        ax[1].set_title('Distribution of k (epsilon = {:.2f})'.format(self.eps_list[1]))
+        ax[1].legend(frameon=False)
+        
+        if is_save:
+            plt.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.show()
+    
+    
+    def calc_moments_simul(self, x_list, y_list):
+         x_vec = np.array(x_list)
+         y_vec = np.array(y_list)
+         
+         # calculate standard deviation
+         std_x = x_vec.std()
+         
+         # calculate correlation between x and y
+         corr_xy = (np.corrcoef(x_vec, y_vec))[0, 1]
+         
+         return std_x, corr_xy
+     
 
 class DataStatsGenerator:
     def __init__(self,
