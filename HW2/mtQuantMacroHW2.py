@@ -20,7 +20,7 @@ from copy import deepcopy
 from tabulate import tabulate
 from fredapi import Fred
 from statsmodels.tsa.filters.hp_filter import hpfilter
-from random import random, randrange, seed
+from random import randrange, seed
 
 class GHHModel:
     def __init__(self,
@@ -729,68 +729,69 @@ class GHHModel:
      
 
 class DataStatsGenerator:
-    def __init__(self,
-                 api_key,
-                 ticker_Y='',
-                 ticker_C='',
-                 ticker_I='',
-                 ticker_L='',
-                 ticker_A='',
-                 ticker_H=''
-                 ):
-        self.api_key  = api_key
-        self.ticker_Y = ticker_Y
-        self.ticker_C = ticker_C
-        self.ticker_I = ticker_I
-        self.ticker_L = ticker_L
-        self.ticker_A = ticker_A
-        self.ticker_H = ticker_H
-    
-    def obtain_data(self):
-        # Connect to FRED
-        fred = Fred(api_key = self.api_key)
+    def __init__(self, f_name):
+        df_US = pd.read_excel(f_name, 'US')
+        df_UK = pd.read_excel(f_name, 'UK')
+        df_IT = pd.read_excel(f_name, 'IT')
         
-        # Obtain the necessary data from FRED
-        self.Y_obs = self.obtain_individual_data(fred, self.ticker_Y)
-        self.C_obs = self.obtain_individual_data(fred, self.ticker_C)
-        self.I_obs = self.obtain_individual_data(fred, self.ticker_I)
-        self.L_obs = self.obtain_individual_data(fred, self.ticker_L)
-        self.A_obs = self.obtain_individual_data(fred, self.ticker_A)
-        self.H_obs = self.obtain_individual_data(fred, self.ticker_H)
+        df_US = self.detrend(df_US)
+        df_UK = self.detrend(df_UK)
+        df_IT = self.detrend(df_IT)
+        
+        self.df_US = df_US
+        self.df_UK = df_UK
+        self.df_IT = df_IT
+        
+        
+    def detrend(self, df):
+        y_cyc_obs, _ = hpfilter(np.log(df.y_obs), lamb = 1600)
+        c_cyc_obs, _ = hpfilter(np.log(df.c_obs), lamb = 1600)
+        x_cyc_obs, _ = hpfilter(np.log(df.x_obs), lamb = 1600)
+        l_cyc_obs, _ = hpfilter(np.log(df.l_obs), lamb = 1600)
+        h_cyc_obs, _ = hpfilter(np.log(df.h_obs), lamb = 1600)
+
+        # The Italian data for h contains NaN. But try to use this series as much as possible.
+        if df["h_obs"].isnull().values.any():  
+            last_idx = df[df["h_obs"].isnull()].index[0] - 1
+            h_cyc_obs, _ = hpfilter(np.log((df.h_obs).iloc[0:last_idx]), lamb = 1600)
+            h_cyc_obs = list(h_cyc_obs) + [np.nan for i in range(len(y_cyc_obs) - last_idx)]
     
-    def obtain_individual_data(self, fred, ticker):
-        if ticker == '':
-            ln_data_cyc = np.NaN
-        else:
-            data = fred.get_series(self.ticker)
-            if self.isMonthly(data):
-                data = data.resample('Q').mean()
-            ln_data = np.log(data)
-            ln_data_cyc, _ = hpfilter(ln_data.dropna(), 1600)
-        return ln_data_cyc
+        df['y_cyc_obs'] = y_cyc_obs
+        df['c_cyc_obs'] = c_cyc_obs
+        df['x_cyc_obs'] = x_cyc_obs
+        df['l_cyc_obs'] = l_cyc_obs
+        df['h_cyc_obs'] = h_cyc_obs
+        df['A_cyc_obs'] = np.log(df.A_obs)
+
+        return df
     
-    def isMonthly(self, data):
-        date_series = pd.Series(data.index)
-        date_series = date_series.dt.to_period("Q")
-        if (date_series[0] == date_series[1]) or (date_series[1] == date_series[2]):
-            isMonthly = True
-        else:
-            isMonthly = False
-        return isMonthly
+    def calc_obs_stats(self):
+        self.calc_stats_for_each_economy(self.df_US)
+        self.calc_stats_for_each_economy(self.df_UK)
+        self.calc_stats_for_each_economy(self.df_IT)
+
     
-    def calc_stats(self):
-        self.Y_std, self.Y_corr, self.Y_auto = self.calc_individual_stats(self.Y_obs)
-        self.C_std, self.C_corr, self.C_auto = self.calc_individual_stats(self.C_obs)
-        self.I_std, self.I_corr, self.I_auto = self.calc_individual_stats(self.I_obs)
-        self.L_std, self.L_corr, self.L_auto = self.calc_individual_stats(self.L_obs)
-        self.A_std, self.A_corr, self.A_auto = self.calc_individual_stats(self.A_obs)
-        self.H_std, self.H_corr, self.H_auto = self.calc_individual_stats(self.H_obs)
+    def calc_stats_for_each_economy(self, df):
+        
+        loop = range(7, 13, 1)
+        label = ['Output', 'Consumption', 'Investment', 'Labor', 'Utilization rate', 'TFP']     
+        
+        tbl = [
+            [label[i-7],
+             (df.iloc[:,i]).std(), 
+             (df.iloc[:,i]).corr(df.y_cyc_obs), 
+             (df.iloc[:,i]).autocorr()]
+            for i in loop]
+        
+        # The Italian data for h contains NaN. Calculate the stats with the data
+        # until NaN
+        if df["h_obs"].isnull().values.any():
+            last_idx = df[df["h_obs"].isnull()].index[0] - 1
+            tbl[-2] = [label[-2],
+                      (df.iloc[0:last_idx, -2]).std(), 
+                      (df.iloc[0:last_idx, -2]).corr(df.y_cyc_obs), 
+                      (df.iloc[0:last_idx, -2]).autocorr()]
+
+        header = ['Variable', 'Standard deviation', 'Correlation with output', 'Autocorrelation']
+        print(tabulate(tbl, headers=header))       
     
-    def calc_individual_stats(self, data):
-        if np.isnan(data):
-            std, corr, auto = np.NaN, np.NaN, np.NaN
-        else:
-            std  = data.std()
-            corr = data.corr(self.Y_obs)
-            auto = data.autocorr()
-        return std, corr, auto

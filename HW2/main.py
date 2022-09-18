@@ -14,7 +14,7 @@ Create Sep 14, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
 
-from mtQuantMacroHW2 import GHHModel
+from mtQuantMacroHW2 import GHHModel, DataStatsGenerator
 # =========================================================================
 # Setting
 # =========================================================================
@@ -103,6 +103,7 @@ GHH_Qd_100.value_func_iter(is_monotone=True,
 GHH_Qd_100.calc_policy_fuction()
 GHH_Qd_100.plot_value_and_policy_functions(fname='Q_d_100.png')
 
+
 # -------------------------------------------------------------------------
 # (e) Observation
 # -------------------------------------------------------------------------
@@ -111,7 +112,8 @@ print("\n",
       "\n        Question 1. (e)            ",\
       "\n **********************************",\
       )
-
+GHH_Qe = DataStatsGenerator(f_name="data.xlsx")
+GHH_Qe.calc_obs_stats()
 
 # -------------------------------------------------------------------------
 # (f) Build the transition probability matrix and derive k's distribution
