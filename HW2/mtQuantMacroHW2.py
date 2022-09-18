@@ -124,15 +124,30 @@ class GHHModel:
     def utility(self, k, eps, h_hat, l_hat, k_tmrw):
         theta = self.theta
         gamma = self.gamma
-
-        cons = self.consumption(k, eps, h_hat, l_hat, k_tmrw)
         
+        cons = self.consumption(k, eps, h_hat, l_hat, k_tmrw)
+    
         u_inside = cons - (l_hat**(1+theta)) / (1+theta)
         if u_inside > 0:
             u = 1/(1-gamma) * u_inside**(1-gamma)
         else:
-            u =np.nan
-            
+                u =np.nan    
+        return u   
+    
+    def utility_matrix(self, k, eps, h_hat, l_hat, k_tmrw):
+        theta = self.theta
+        gamma = self.gamma
+
+        cons = self.consumption(k, eps, h_hat, l_hat, k_tmrw)
+        
+        u_inside = cons - (l_hat**(1+theta)) / (1+theta)
+        is_computable = (u_inside > 0)
+        
+        u = deepcopy(u_inside)
+        u[:] = np.nan
+        
+        u[is_computable] =1/(1-gamma) * u_inside[is_computable]**(1-gamma)
+        
         return u   
 
     
@@ -141,8 +156,6 @@ class GHHModel:
         A = self.A
         y = A * (k * h_hat)**alpha * l_hat**(1-alpha)
         return y
-
-        
     
     def eval_value_func(self, 
                         k_idx, # index for the capital stock today 
@@ -177,9 +190,9 @@ class GHHModel:
             
             # Calculate the optimal consumption depending on k',
             u_i = self.utility(k, eps, h_hat, l_hat, k_tmrw)
-            
+
             possible_V_td[i] = u_i + beta * np.dot(V_tmrw[i, :], prob_r)
-                
+
             if is_concave and (i > 0):
                 if possible_V_td[i - 1] > possible_V_td[i]:
                 # If the possible value decreases from that in the previous 
@@ -187,13 +200,41 @@ class GHHModel:
                     break
                             
         # take the maximum in the possible today's value vector
-        self.u_i = u_i
-        self.V_tmrw = V_tmrw
-        self.possible_V_td = possible_V_td
-        self.k_idx = k_idx
-        self.eps_idx= eps_idx
-        self.i= i
-        self.starting_grid = starting_grid
+        k_tmrw_idx = int(np.nanargmax(possible_V_td))
+        V_td_k_eps = possible_V_td[k_tmrw_idx]   
+                
+        return V_td_k_eps, k_tmrw_idx
+    
+    
+    def eval_value_func_matrix(self, 
+                        k_idx, # index for the capital stock today 
+                        eps_idx, # index for the shock realized today
+                        V_tmrw, # tomorrow's values (depending on k')
+                        starting_grid = 0,
+                        ):
+        # load necessary parameter values from instance attributes
+        beta   = self.beta
+        nGrids = self.nGrids
+        k_grid = self.k_grid
+        prob_r = self.prob[:, eps_idx]
+        k      = self.k_grid[k_idx]
+        eps    = self.eps_list[eps_idx]
+        h_hat  = self.h_hat_mat[k_idx, eps_idx]
+        l_hat  = self.l_hat_mat[k_idx, eps_idx]
+        
+        # Allocate memory for the vector of possible today's value
+        possible_V_td = np.empty((nGrids, ))
+        possible_V_td[:]= np.nan
+        
+        # convert k' in 2-D numpy array
+        k_tmrw   = (np.array(k_grid[starting_grid: ])).reshape((-1, 1))
+        
+        # Calculate the optimal consumption depending on k',
+        u = list(self.utility_matrix(k, eps, h_hat, l_hat, k_tmrw))
+        possible_V_td[starting_grid: ] = (u + beta * (np.dot(V_tmrw[starting_grid: ], prob_r)).reshape(-1,1)).reshape((nGrids - starting_grid),)
+        
+                            
+        # take the maximum in the possible today's value vector
         k_tmrw_idx = int(np.nanargmax(possible_V_td))
         V_td_k_eps = possible_V_td[k_tmrw_idx]   
                 
@@ -207,6 +248,7 @@ class GHHModel:
                         is_concave = False,  # if true, exploit concavity
                         is_monotone = False, # if true, exploit monotonicity
                         is_modified_policy_iter = False, # if true, implement modified policy itereation
+                        is_matrix_calc = False, # if true, exploit matrix calculus
                         n_h = 10,
                         ):
         # if initial guess for V is not given, start with zero matrix
@@ -223,36 +265,65 @@ class GHHModel:
         # Start stopwatch
         tic = time.time()
         
-        # Value function iteration
-        while (i < max_iter) and (diff > tol):
-            V_pre = deepcopy(V_post)
-            
-            # Value function iteration part
-            for r in range(len(self.eps_list)):
-                starting_grid = 0
-                for j in range(self.nGrids):            
-                    V_post[j, r], k_tmrw_idx_mat[j, r] \
-                        = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
-                    if is_monotone:
-                        starting_grid = k_tmrw_idx_mat[j, r]
-            diff = np.nanmax((np.abs(V_post - V_pre)))
-            
-            
-            # Modified policy function iteration part
-            if is_modified_policy_iter:
-                if diff <= tol:
-                    # if already converged, exit without policy iteration
-                    break
-                V_post = self.modified_policy_func_iter(
-                    V_init = V_post,
-                    k_tmrw_idx_mat = k_tmrw_idx_mat,
-                    n_h = n_h
-                )
-                diff = np.nanmax(np.abs(V_post - V_pre))
-            
-            # Proceed the iteration counter
-            i+=1 
-        
+        if is_matrix_calc:
+            # Value function iteration
+            while (i < max_iter) and (diff > tol):
+                V_pre = deepcopy(V_post)
+
+                # Value function iteration part
+                for r in range(len(self.eps_list)):
+                    starting_grid = 0
+                    for j in range(self.nGrids):          
+                        V_post[j, r], k_tmrw_idx_mat[j, r] \
+                            = self.eval_value_func_matrix(j, r, V_pre, starting_grid)
+                        if is_monotone:
+                            starting_grid = k_tmrw_idx_mat[j, r]
+                diff = np.nanmax((np.abs(V_post - V_pre)))
+                
+                # Modified policy function iteration part
+                if is_modified_policy_iter:
+                    if diff <= tol:
+                        # if already converged, exit without policy iteration
+                        break
+                    V_post = self.modified_policy_func_iter(
+                        V_init = V_post,
+                        k_tmrw_idx_mat = k_tmrw_idx_mat,
+                        n_h = n_h
+                    )
+                    diff = np.nanmax(np.abs(V_post - V_pre))
+
+                # Proceed the iteration counter
+                i+=1 
+        else:
+
+            # Value function iteration
+            while (i < max_iter) and (diff > tol):
+                V_pre = deepcopy(V_post)
+
+                # Value function iteration part
+                for r in range(len(self.eps_list)):
+                    starting_grid = 0
+                    for j in range(self.nGrids):          
+                        V_post[j, r], k_tmrw_idx_mat[j, r] \
+                            = self.eval_value_func(j, r, V_pre, is_concave, starting_grid)
+                        if is_monotone:
+                            starting_grid = k_tmrw_idx_mat[j, r]
+                diff = np.nanmax((np.abs(V_post - V_pre)))
+                
+                # Modified policy function iteration part
+                if is_modified_policy_iter:
+                    if diff <= tol:
+                        # if already converged, exit without policy iteration
+                        break
+                    V_post = self.modified_policy_func_iter(
+                        V_init = V_post,
+                        k_tmrw_idx_mat = k_tmrw_idx_mat,
+                        n_h = n_h
+                    )
+                    diff = np.nanmax(np.abs(V_post - V_pre))
+
+                # Proceed the iteration counter
+                i+=1         
         # Check if max_iter is binding
         if diff > tol:
             raise Exception('Value function iteration reached max_iter. The solution could be incorrect.')

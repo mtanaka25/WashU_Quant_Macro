@@ -29,10 +29,10 @@ print("\n",
       "\n        Question 1. (a)            ",\
       "\n **********************************",\
       )
-GHH_Qa = GHHModel()
-GHH_Qa.value_func_iter()
-GHH_Qa.calc_policy_fuction()
-GHH_Qa.plot_value_and_policy_functions(fname='Q_a.png')
+# GHH_Qa = GHHModel()
+# GHH_Qa.value_func_iter()
+# GHH_Qa.calc_policy_fuction()
+# GHH_Qa.plot_value_and_policy_functions(fname='Q_a.png')
 
 
 # -------------------------------------------------------------------------
@@ -43,10 +43,10 @@ print("\n",
       "\n        Question 1. (b)            ",\
       "\n **********************************",\
       )
-GHH_Qb = GHHModel(nGrids=1000)
-GHH_Qb.value_func_iter()
-GHH_Qb.calc_policy_fuction()
-GHH_Qb.plot_value_and_policy_functions(fname='Q_b.png')
+GHH_Qb2 = GHHModel(nGrids=1000)
+GHH_Qb2.value_func_iter(is_matrix_calc=True)
+GHH_Qb2.calc_policy_fuction()
+GHH_Qb2.plot_value_and_policy_functions(fname='Q_b2.png')
 
 # -------------------------------------------------------------------------
 # (c) Solve with 1000 grid points and with speed-up methods
@@ -56,20 +56,20 @@ print("\n",
       "\n        Question 1. (c)            ",\
       "\n **********************************",\
       )
-GHH_Qc_mono = GHHModel(nGrids=1000)
-GHH_Qc_mono.value_func_iter(is_monotone=True)
-GHH_Qc_mono.calc_policy_fuction()
-GHH_Qc_mono.plot_value_and_policy_functions(fname='Q_c_mono.png')
+GHH_Qc2_mono = GHHModel(nGrids=1000)
+GHH_Qc2_mono.value_func_iter(is_monotone=True, is_matrix_calc=True)
+GHH_Qc2_mono.calc_policy_fuction()
+GHH_Qc2_mono.plot_value_and_policy_functions(fname='Q_c2_mono.png')
 
-GHH_Qc_concave = GHHModel(nGrids=1000)
-GHH_Qc_concave.value_func_iter(is_concave=True)
-GHH_Qc_concave.calc_policy_fuction()
-GHH_Qc_concave.plot_value_and_policy_functions(fname='Q_c_concave.png')
+# GHH_Qc_concave = GHHModel(nGrids=1000)
+# GHH_Qc_concave.value_func_iter(is_concave=True)
+# GHH_Qc_concave.calc_policy_fuction()
+# GHH_Qc_concave.plot_value_and_policy_functions(fname='Q_c_concave.png')
 
-GHH_Qc_both = GHHModel(nGrids=1000)
-GHH_Qc_both.value_func_iter(is_monotone=True, is_concave=True)
-GHH_Qc_both.calc_policy_fuction()
-GHH_Qc_both.plot_value_and_policy_functions(fname='Q_c_both.png')
+# GHH_Qc_both = GHHModel(nGrids=1000)
+# GHH_Qc_both.value_func_iter(is_monotone=True, is_concave=True)
+# GHH_Qc_both.calc_policy_fuction()
+# GHH_Qc_both.plot_value_and_policy_functions(fname='Q_c_both.png')
 
 # -------------------------------------------------------------------------
 # (d) Solve with 1000 grid points and with Howard method
@@ -79,29 +79,29 @@ print("\n",
       "\n        Question 1. (d)            ",\
       "\n **********************************",\
       )
-GHH_Qd_10 = GHHModel(nGrids=1000)
-GHH_Qd_10.value_func_iter(is_monotone=True, 
-                          is_concave=True,
-                          is_modified_policy_iter=True,
-                          n_h=10)
-GHH_Qd_10.calc_policy_fuction()
-GHH_Qd_10.plot_value_and_policy_functions(fname='Q_d_10.png')
+# GHH_Qd_10 = GHHModel(nGrids=1000)
+# GHH_Qd_10.value_func_iter(is_monotone=True, 
+#                           is_concave=True,
+#                           is_modified_policy_iter=True,
+#                           n_h=10)
+# GHH_Qd_10.calc_policy_fuction()
+# GHH_Qd_10.plot_value_and_policy_functions(fname='Q_d_10.png')
 
-GHH_Qd_25 = GHHModel(nGrids=1000)
-GHH_Qd_25.value_func_iter(is_monotone=True, 
-                          is_concave=True,
-                          is_modified_policy_iter=True,
-                          n_h=25)
-GHH_Qd_25.calc_policy_fuction()
-GHH_Qd_25.plot_value_and_policy_functions(fname='Q_d_25.png')
+# GHH_Qd_25 = GHHModel(nGrids=1000)
+# GHH_Qd_25.value_func_iter(is_monotone=True, 
+#                           is_concave=True,
+#                           is_modified_policy_iter=True,
+#                           n_h=25)
+# GHH_Qd_25.calc_policy_fuction()
+# GHH_Qd_25.plot_value_and_policy_functions(fname='Q_d_25.png')
 
-GHH_Qd_100 = GHHModel(nGrids=1000)
-GHH_Qd_100.value_func_iter(is_monotone=True, 
-                          is_concave=True,
-                          is_modified_policy_iter=True,
-                          n_h=100)
-GHH_Qd_100.calc_policy_fuction()
-GHH_Qd_100.plot_value_and_policy_functions(fname='Q_d_100.png')
+# GHH_Qd_100 = GHHModel(nGrids=1000)
+# GHH_Qd_100.value_func_iter(is_monotone=True, 
+#                           is_concave=True,
+#                           is_modified_policy_iter=True,
+#                           n_h=100)
+# GHH_Qd_100.calc_policy_fuction()
+# GHH_Qd_100.plot_value_and_policy_functions(fname='Q_d_100.png')
 
 
 # -------------------------------------------------------------------------
@@ -112,8 +112,8 @@ print("\n",
       "\n        Question 1. (e)            ",\
       "\n **********************************",\
       )
-GHH_Qe = DataStatsGenerator(f_name="data.xlsx")
-GHH_Qe.calc_obs_stats()
+# GHH_Qe = DataStatsGenerator(f_name="data.xlsx")
+# GHH_Qe.calc_obs_stats()
 
 # -------------------------------------------------------------------------
 # (f) Build the transition probability matrix and derive k's distribution
@@ -123,8 +123,8 @@ print("\n",
       "\n        Question 1. (f)            ",\
       "\n **********************************",\
       )
-GHH_Qd_10.obtain_stationary_dist()
-GHH_Qd_10.plot_stationary_dist(fname='Q_f_result.png')
+# GHH_Qd_10.obtain_stationary_dist()
+# GHH_Qd_10.plot_stationary_dist(fname='Q_f_result.png')
 
 # -------------------------------------------------------------------------
 # (g) Compute simulated statistics
@@ -134,7 +134,7 @@ print("\n",
       "\n        Question 1. (g)            ",\
       "\n **********************************",\
       )
-GHH_Qd_10.get_stationary_dist_stats()
+# GHH_Qd_10.get_stationary_dist_stats()
 
 # -------------------------------------------------------------------------
 # (h)(i) Derive k's distribution and compute simulated statistics
@@ -144,7 +144,7 @@ print("\n",
       "\n     Question 1. (h)(i)            ",\
       "\n **********************************",\
       )
-GHH_Qd_10.run_time_series_simulation(fname='Q_h_result.png')
+# GHH_Qd_10.run_time_series_simulation(fname='Q_h_result.png')
 
 
 # -------------------------------------------------------------------------
