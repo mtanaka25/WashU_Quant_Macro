@@ -18,7 +18,7 @@ from mtQuantMacroHW2 import GHHModel, DataStatsGenerator
 # =========================================================================
 # Setting
 # =========================================================================
-
+do_volantary_part = False
 
 
 # -------------------------------------------------------------------------
@@ -32,7 +32,7 @@ print("\n",
 GHH_Qa = GHHModel()
 GHH_Qa.value_func_iter()
 GHH_Qa.calc_policy_fuction()
-GHH_Qa.plot_value_and_policy_functions(fname='Q_a.png')
+GHH_Qa.plot_value_and_policy_functions(fname='Econ5725_Qa.png')
 
 
 # -------------------------------------------------------------------------
@@ -46,7 +46,7 @@ print("\n",
 GHH_Qb2 = GHHModel(nGrids=1000)
 GHH_Qb2.value_func_iter()
 GHH_Qb2.calc_policy_fuction()
-GHH_Qb2.plot_value_and_policy_functions(fname='Q_b2.png')
+GHH_Qb2.plot_value_and_policy_functions(fname='Econ5725_Qb.png')
 
 # -------------------------------------------------------------------------
 # (c) Solve with 1000 grid points and with speed-up methods
@@ -59,17 +59,28 @@ print("\n",
 GHH_Qc2_mono = GHHModel(nGrids=1000)
 GHH_Qc2_mono.value_func_iter(is_monotone=True, is_matrix_calc=True)
 GHH_Qc2_mono.calc_policy_fuction()
-GHH_Qc2_mono.plot_value_and_policy_functions(fname='Q_c2_mat_mono.png')
+GHH_Qc2_mono.plot_value_and_policy_functions(fname='Econ5725_Qc_mono.png')
 
 GHH_Qc_concave = GHHModel(nGrids=1000)
 GHH_Qc_concave.value_func_iter(is_concave=True)
 GHH_Qc_concave.calc_policy_fuction()
-GHH_Qc_concave.plot_value_and_policy_functions(fname='Q_c_concave.png')
+GHH_Qc_concave.plot_value_and_policy_functions(fname='Econ5725_Qc_concave.png')
 
 GHH_Qc_both = GHHModel(nGrids=1000)
 GHH_Qc_both.value_func_iter(is_monotone=True, is_concave=True)
 GHH_Qc_both.calc_policy_fuction()
-GHH_Qc_both.plot_value_and_policy_functions(fname='Q_c_both.png')
+GHH_Qc_both.plot_value_and_policy_functions(fname='Econ5725_Qc_both.png')
+
+if do_volantary_part:
+      GHH_Qc_vol1 = GHHModel(nGrids=1000)
+      GHH_Qc_vol1.value_func_iter(is_matrix_calc=True)
+      GHH_Qc_vol1.calc_policy_fuction()
+      GHH_Qc_vol1.plot_value_and_policy_functions(fname='Econ5725_Qc_volantary1.png')
+
+      GHH_Qc_vol2 = GHHModel(nGrids=1000)
+      GHH_Qc_vol2.value_func_iter(is_matrix_calc=True, is_monotone=True)
+      GHH_Qc_vol2.calc_policy_fuction()
+      GHH_Qc_vol2.plot_value_and_policy_functions(fname='Econ5725_Qc_volantary2.png')
 
 # -------------------------------------------------------------------------
 # (d) Solve with 1000 grid points and with Howard method
@@ -85,7 +96,7 @@ GHH_Qd_10.value_func_iter(is_monotone=True,
                           is_modified_policy_iter=True,
                           n_h=10)
 GHH_Qd_10.calc_policy_fuction()
-GHH_Qd_10.plot_value_and_policy_functions(fname='Q_d_10.png')
+GHH_Qd_10.plot_value_and_policy_functions(fname='Econ5725_Qd_nh10.png')
 
 GHH_Qd_25 = GHHModel(nGrids=1000)
 GHH_Qd_25.value_func_iter(is_monotone=True, 
@@ -93,7 +104,7 @@ GHH_Qd_25.value_func_iter(is_monotone=True,
                           is_modified_policy_iter=True,
                           n_h=25)
 GHH_Qd_25.calc_policy_fuction()
-GHH_Qd_25.plot_value_and_policy_functions(fname='Q_d_25.png')
+GHH_Qd_25.plot_value_and_policy_functions(fname='Econ5725_Qd_nh25.png')
 
 GHH_Qd_100 = GHHModel(nGrids=1000)
 GHH_Qd_100.value_func_iter(is_monotone=True, 
@@ -101,7 +112,7 @@ GHH_Qd_100.value_func_iter(is_monotone=True,
                           is_modified_policy_iter=True,
                           n_h=100)
 GHH_Qd_100.calc_policy_fuction()
-GHH_Qd_100.plot_value_and_policy_functions(fname='Q_d_100.png')
+GHH_Qd_100.plot_value_and_policy_functions(fname='Econ5725_Qd_nh100.png')
 
 
 # -------------------------------------------------------------------------
@@ -124,7 +135,7 @@ print("\n",
       "\n **********************************",\
       )
 GHH_Qd_10.obtain_stationary_dist()
-GHH_Qd_10.plot_stationary_dist(fname='Q_f_result.png')
+GHH_Qd_10.plot_stationary_dist(fname='Econ5725_Qf_distribution.png')
 
 # -------------------------------------------------------------------------
 # (g) Compute simulated statistics
@@ -144,9 +155,11 @@ print("\n",
       "\n     Question 1. (h)(i)            ",\
       "\n **********************************",\
       )
-GHH_Qd_10.run_time_series_simulation(fname='Q_h_result_1100.png')
-GHH_Qd_10.run_time_series_simulation(fname='Q_h_result_110000.png', 
-                                     n_periods=110000, burnin=10000)
+GHH_Qd_10.run_time_series_simulation(fname='Econ5725_Qh_distribution.png')
+if do_volantary_part:
+    GHH_Qd_10.run_time_series_simulation(
+            fname='Econ5725_Qf_distribution_110000.png',
+            n_periods=110000, burnin=10000)
 
 
 # -------------------------------------------------------------------------
@@ -157,3 +170,7 @@ print("\n",
       "\n        Question 1. (j)            ",\
       "\n **********************************",\
       )
+GHH_Qd_10.run_COVID19_simulation(
+                           your_fredapi_key = '824eaabba782e478f1473dc862757ab9',
+                           fname = 'Econ5727_Qj.png'
+                           )

@@ -20,6 +20,7 @@ from copy import deepcopy
 from tabulate import tabulate
 from statsmodels.tsa.filters.hp_filter import hpfilter
 from random import randrange, seed
+from fredapi import Fred
 
 class GHHModel:
     def __init__(self,
@@ -163,12 +164,6 @@ class GHHModel:
                         is_concave = False, # if true, exploit concavity
                         starting_grid = 0,
                         ):
-        """
-        eval_value_func evaluates today's value based on the given
-        capital stock today (k), the given investment-specific shock today
-        (epsilon), and tomorrow's value (V'). Note that V' depends on the
-        capital stock tomorrow (k'), which is optimally chosen today.
-        """
         # load necessary parameter values from instance attributes
         beta   = self.beta
         nGrids = self.nGrids
@@ -567,7 +562,7 @@ class GHHModel:
         self.k_hist_borders = k_borders
 
 
-    def calc_moments(self, x_mat, y_mat):
+    def calc_stats(self, x_mat, y_mat):
         k_eps_dist = self.k_eps_stationary_dist
         
         # calculate mean
@@ -591,23 +586,23 @@ class GHHModel:
     
     def get_stationary_dist_stats(self):
         # output
-        std_y, corr_yy = self.calc_moments(self.y_mat, self.y_mat)
+        std_y, corr_yy = self.calc_stats(self.y_mat, self.y_mat)
         
         # consumption
-        std_c, corr_cy = self.calc_moments(self.c_mat, self.y_mat)
+        std_c, corr_cy = self.calc_stats(self.c_mat, self.y_mat)
 
         # (gross) investment
-        std_x, corr_xy = self.calc_moments(self.x_mat, self.y_mat)
+        std_x, corr_xy = self.calc_stats(self.x_mat, self.y_mat)
 
         # labor
-        std_l, corr_ly = self.calc_moments(self.l_hat_mat, self.y_mat)
+        std_l, corr_ly = self.calc_stats(self.l_hat_mat, self.y_mat)
 
         # TFP
         # -- in this model, TFP (= A) is a constant
         std_A, corr_Ay = 0, 0
 
         # utilization
-        std_h, corr_hy = self.calc_moments(self.h_hat_mat, self.y_mat)
+        std_h, corr_hy = self.calc_stats(self.h_hat_mat, self.y_mat)
         
         result_table = [
                         ['Output (y)'      , std_y, corr_yy],
@@ -721,7 +716,7 @@ class GHHModel:
 
         # utilization
         std_h, corr_hy = self.calc_moments_simul(h_path, y_path)
-         
+        
         result_table = [
                         ['Output (y)'      , std_y, corr_yy],
                         ['Consumption (c)' , std_c, corr_cy],
@@ -750,7 +745,7 @@ class GHHModel:
             (k_cumulative_num_eps0[i+1] - k_cumulative_num_eps0[i])/len(eps_idx_path)*100
             for i in range(len(k_cumulative_num_eps0)-1)
             ]
-
+        
         k_cumulative_num_eps1 = [
             sum((k_path[i] <= border_i) and (eps_idx_path[i] == 1) for i in range(len(k_path)))
             for border_i in k_hist_borders]
@@ -761,6 +756,8 @@ class GHHModel:
             (k_cumulative_num_eps1[i+1] - k_cumulative_num_eps1[i])/len(eps_idx_path)*100
             for i in range(len(k_cumulative_num_eps1)-1)
             ]
+
+        sns.set()
         
         bin_width = k_hist_x_axis[2] - k_hist_x_axis[1]
         fig, ax = plt.subplots(2, 1, figsize=(10, 12))      
@@ -797,6 +794,160 @@ class GHHModel:
          
          return std_x, corr_xy
      
+        
+    def run_COVID19_simulation(self, 
+                               your_fredapi_key,
+                               is_save = True, 
+                               fname = 'COVID19_simulation_result.png'                                
+                               ):
+        sns.set()
+        
+        y_hat_obs, l_hat_obs, x_hat_obs, c_hat_obs = \
+            self.obtain_data_from_fred(your_fredapi_key)
+        
+        y_hat, l_hat, x_hat, c_hat, = self.calc_response_to_COVID_shock()
+
+        x       = y_hat_obs.index
+        xLabel  = ['20Q1', 'Q2', 'Q3', 'Q4', '21Q1', 'Q2', 'Q3', 'Q4', '22Q1', 'Q2']
+        fig, ax = plt.subplots(2, 2, figsize=(10,12))
+        
+        ax[0, 0].plot(x, y_hat    , label='model')
+        ax[0, 0].plot(x, y_hat_obs, label='data' , linestyle='dashed')
+        ax[0, 0].set_xticks(x)
+        ax[0, 0].set_xticklabels(xLabel)
+        ax[0, 0].set_title('Output')
+        ax[0, 0].legend(frameon=False)
+        
+        ax[1, 0].plot(x, c_hat    , label='model')
+        ax[1, 0].plot(x, c_hat_obs, label='data' , linestyle='dashed')
+        ax[1, 0].set_xticks(x)
+        ax[1, 0].set_xticklabels(xLabel)
+        ax[1, 0].set_title('Consumption')
+        ax[1, 0].legend(frameon=False)
+        
+        ax[0, 1].plot(x, x_hat    , label='model')
+        ax[0, 1].plot(x, x_hat_obs, label='data' , linestyle='dashed')
+        ax[0, 1].set_xticks(x)
+        ax[0, 1].set_xticklabels(xLabel)
+        ax[0, 1].set_title('Investment')
+        ax[0, 1].legend(frameon=False)
+        
+        ax[1, 1].plot(x, l_hat    , label='model')
+        ax[1, 1].plot(x, l_hat_obs, label='data' , linestyle='dashed')
+        ax[1, 1].set_xticks(x)
+        ax[1, 1].set_xticklabels(xLabel)
+        ax[1, 1].set_title('Employment')
+        ax[1, 1].legend(frameon=False)
+
+        if is_save:
+            plt.savefig(fname, bbox_inches='tight', pad_inches=0)
+        plt.show()
+
+
+    def obtain_data_from_fred(self, your_fredapi_key,):
+        # Connect to FRED
+        fred = Fred(api_key = your_fredapi_key) 
+
+        # Obtain the necessary data from FRED
+        y_obs = fred.get_series('GDPC1')
+        l_obs = fred.get_series('PAYEMS')
+        x_obs = fred.get_series('GPDIC1')
+        c_obs = fred.get_series('PCECC96')
+         
+        # For employment data, convert from monthly to quarterly.
+        l_obs = l_obs.resample('Q').mean()
+         
+        # Apply HP-filter to log y, log l, log x, and log c
+        # The resulting cyclical components are log-difference between observed data
+        # and filtered trend, meaning they have the same unit as the counterparts 
+        # in the model
+        y_hat_obs, _ = hpfilter(np.log(y_obs), 1600)
+        l_hat_obs, _ = hpfilter(np.log(l_obs), 1600)
+        x_hat_obs, _ = hpfilter(np.log(x_obs), 1600)
+        c_hat_obs, _ = hpfilter(np.log(c_obs), 1600)
+
+        # Pick up the data from 2019Q4 to 2021Q4
+        y_hat_obs = (y_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
+        l_hat_obs = (l_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
+        x_hat_obs = (x_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
+        c_hat_obs = (c_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
+        
+        return y_hat_obs, l_hat_obs, x_hat_obs, c_hat_obs
+
+
+    def calc_response_to_COVID_shock(self,
+                                     n_periods = 10):
+        l_hat_mat = self.l_hat_mat
+        h_hat_mat = self.h_hat_mat
+        k_eps_dist = self.k_eps_stationary_dist
+        k_tmrw_idx_mat = self.k_tmrw_idx_mat
+        
+        # history of epsilon        
+        eps_idx_path = [0 for i in range(n_periods)]
+        eps_idx_path[1] = 1
+        
+        # initial value of k
+        k_values = (np.array(self.k_grid))
+        k_stationary_dist = np.sum(k_eps_dist, axis = 1)
+        k_mean = np.sum(k_stationary_dist * k_values)
+        k_init_idx = np.argmin(np.abs(k_values - k_mean))
+        
+        # Compute the mean of each variable of interest
+        y_mean  = np.sum(self.y_mat * k_eps_dist)
+        c_mean  = np.sum(self.c_mat * k_eps_dist)
+        x_mean  = np.sum(self.x_mat * k_eps_dist)
+        l_mean  = np.sum(self.l_hat_mat * k_eps_dist)
+        
+        # prepare the lists where the simulated path of each variable will be stored
+        y_path = []
+        c_path = []
+        x_path = []
+        l_path = []
+        
+        k_tmrw_idx = k_init_idx
+        k_tmrw     = self.k_grid[k_init_idx]
+            
+        for t in range(n_periods):
+            # period t's state
+            eps_idx = eps_idx_path[t]
+            eps   = self.eps_list[eps_idx]
+            k_idx = deepcopy(k_tmrw_idx)
+            k     = deepcopy(k_tmrw)
+            
+            # pick up optimal h and l
+            l = l_hat_mat[k_idx, eps_idx]
+            h = h_hat_mat[k_idx, eps_idx]
+
+            # pick up optimal k'
+            k_tmrw_idx = k_tmrw_idx_mat[k_idx, eps_idx]
+            k_tmrw     = self.k_grid[k_tmrw_idx]
+            
+            # calculate output
+            y = self.production(k = k, h_hat = h, l_hat = l)
+            
+            # calculate consumption
+            c = self.consumption(k = k, 
+                                  eps = eps, 
+                                  h_hat = h, 
+                                  l_hat = l, 
+                                  k_tmrw = k_tmrw)
+            
+            # calculate (gross) investment
+            x = y - c
+            
+            # Store the calcurated values
+            y_path.append(y)
+            c_path.append(c)
+            x_path.append(x)
+            l_path.append(l)
+        
+        y_hat = (y_path - y_mean) * 100
+        c_hat = (c_path - c_mean) * 100
+        x_hat = (x_path - x_mean) * 100
+        l_hat = (l_path - l_mean) * 100
+        
+        return y_hat, c_hat, x_hat, l_hat
+
 
 class DataStatsGenerator:
     def __init__(self, f_name):
