@@ -19,7 +19,7 @@ from mtQuantMacroHW2 import GHHModel, DataStatsGenerator
 # Setting
 # =========================================================================
 do_volantary_part = False
-
+your_fredapi_key  = 'xxxxxxxxxxxxx' # Use your own api key
 
 # -------------------------------------------------------------------------
 # (a) Solve with 100 grid points and without any speed-up method
@@ -156,11 +156,6 @@ print("\n",
       "\n **********************************",\
       )
 GHH_Qd_10.run_time_series_simulation(fname='Econ5725_Qh_distribution.png')
-if do_volantary_part:
-    GHH_Qd_10.run_time_series_simulation(
-            fname='Econ5725_Qf_distribution_110000.png',
-            n_periods=110000, burnin=10000)
-
 
 # -------------------------------------------------------------------------
 # (j) Simulation regarding the COVID-19 shock
@@ -171,6 +166,6 @@ print("\n",
       "\n **********************************",\
       )
 GHH_Qd_10.run_COVID19_simulation(
-                           your_fredapi_key = '824eaabba782e478f1473dc862757ab9',
+                           your_fredapi_key = your_fredapi_key,
                            fname = 'Econ5727_Qj.png'
                            )
