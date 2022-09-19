@@ -43,10 +43,10 @@ print("\n",
       "\n        Question 1. (b)            ",\
       "\n **********************************",\
       )
-GHH_Qb = GHHModel(nGrids=1000)
-GHH_Qb.value_func_iter()
-GHH_Qb.calc_policy_fuction()
-GHH_Qb.plot_value_and_policy_functions(fname='Q_b.png')
+GHH_Qb2 = GHHModel(nGrids=1000)
+GHH_Qb2.value_func_iter()
+GHH_Qb2.calc_policy_fuction()
+GHH_Qb2.plot_value_and_policy_functions(fname='Q_b2.png')
 
 # -------------------------------------------------------------------------
 # (c) Solve with 1000 grid points and with speed-up methods
@@ -56,10 +56,10 @@ print("\n",
       "\n        Question 1. (c)            ",\
       "\n **********************************",\
       )
-GHH_Qc_mono = GHHModel(nGrids=1000)
-GHH_Qc_mono.value_func_iter(is_monotone=True)
-GHH_Qc_mono.calc_policy_fuction()
-GHH_Qc_mono.plot_value_and_policy_functions(fname='Q_c_mono.png')
+GHH_Qc2_mono = GHHModel(nGrids=1000)
+GHH_Qc2_mono.value_func_iter(is_monotone=True, is_matrix_calc=True)
+GHH_Qc2_mono.calc_policy_fuction()
+GHH_Qc2_mono.plot_value_and_policy_functions(fname='Q_c2_mat_mono.png')
 
 GHH_Qc_concave = GHHModel(nGrids=1000)
 GHH_Qc_concave.value_func_iter(is_concave=True)
@@ -144,7 +144,9 @@ print("\n",
       "\n     Question 1. (h)(i)            ",\
       "\n **********************************",\
       )
-GHH_Qd_10.run_time_series_simulation(fname='Q_h_result.png')
+GHH_Qd_10.run_time_series_simulation(fname='Q_h_result_1100.png')
+GHH_Qd_10.run_time_series_simulation(fname='Q_h_result_110000.png', 
+                                     n_periods=110000, burnin=10000)
 
 
 # -------------------------------------------------------------------------
