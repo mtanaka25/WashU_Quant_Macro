@@ -866,7 +866,7 @@ class GHHModel:
         x_hat_obs, _ = hpfilter(np.log(x_obs), 1600)
         c_hat_obs, _ = hpfilter(np.log(c_obs), 1600)
 
-        # Pick up the data from 2019Q4 to 2021Q4
+        # Pick up the data from 2020Q1 to 2022Q2
         y_hat_obs = (y_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
         l_hat_obs = (l_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
         x_hat_obs = (x_hat_obs.truncate(before = '2020-1-1', after = '2022-6-30')) * 100
@@ -941,10 +941,10 @@ class GHHModel:
             x_path.append(x)
             l_path.append(l)
         
-        y_hat = (y_path - y_mean) * 100
-        c_hat = (c_path - c_mean) * 100
-        x_hat = (x_path - x_mean) * 100
-        l_hat = (l_path - l_mean) * 100
+        y_hat = (y_path - y_mean) / y_mean * 100
+        c_hat = (c_path - c_mean) / c_mean * 100
+        x_hat = (x_path - x_mean) / x_mean * 100
+        l_hat = (l_path - l_mean) / l_mean * 100
         
         return y_hat, c_hat, x_hat, l_hat
 
