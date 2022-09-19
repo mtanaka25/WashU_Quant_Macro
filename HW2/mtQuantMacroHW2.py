@@ -18,7 +18,6 @@ import datetime
 import seaborn as sns
 from copy import deepcopy
 from tabulate import tabulate
-from fredapi import Fred
 from statsmodels.tsa.filters.hp_filter import hpfilter
 from random import randrange, seed
 
@@ -469,7 +468,7 @@ class GHHModel:
     def obtain_stationary_dist(self, 
                                 init_dist = np.nan,
                                 max_iter  = 10000,
-                                tol       = 10E-5):
+                                tol       = 10E-30):
         # load the transition matrix (if not prepared, build it)
         if not hasattr(self, 'trans_mat'):
             self.build_transition_matrix()
@@ -479,7 +478,7 @@ class GHHModel:
         
         # prepare the initial distribution
         if np.isnan(init_dist):
-            # if any initial distribution is given, use the uniform dist
+            # if initial distribution is not given, use the uniform dist
             init_dist = np.ones((n_states, 1))
             init_dist = init_dist / n_states
         
