@@ -144,7 +144,7 @@ class SIMModel:
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Compute the Lorenz curve based on grid points 
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        Lorenz_Y20 = self.discrete_Lorenz(m20)
+        Lorenz_Y20 = self.discrete_Lorenz_curve(m20)
         self.Lorenz_Y20 = Lorenz_Y20
         
         fig3 = plt.figure(figsize=(8, 6))
@@ -180,15 +180,15 @@ class SIMModel:
         
         # group for ages 20-25
         y_20_25 = np.sum(m_mat[0:5, :], axis=0)
-        Lorenz_Y20_25 = self.discrete_Lorenz(y_20_25)
+        Lorenz_Y20_25 = self.discrete_Lorenz_curve(y_20_25)
         
         # group for ages 40-45
         y_40_45 = np.sum(m_mat[20:25, :], axis=0)
-        Lorenz_Y40_45 = self.discrete_Lorenz(y_40_45)
+        Lorenz_Y40_45 = self.discrete_Lorenz_curve(y_40_45)
         
         # group for ages 60-65
         y_60_65 = np.sum(m_mat[40:45, :], axis=0)
-        Lorenz_Y60_65 = self.discrete_Lorenz(y_60_65)
+        Lorenz_Y60_65 = self.discrete_Lorenz_curve(y_60_65)
         
         fig4 = plt.figure(figsize=(8, 6))
         plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
@@ -203,10 +203,23 @@ class SIMModel:
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--')
         plt.legend(frameon = False)
-        fig4.savefig('Lorenz_Y20.png', dpi=300)
+        fig4.savefig('Lorenz_groups.png', dpi=300)
         
-
-    def discrete_Lorenz(self, distribution):
+        # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        # Compute the Gini coefficient for each age
+        # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+           
+        
+        Lorenz_by_age = [self.discrete_Lorenz_curve(m_mat[a, :])
+                         for a in range(n_ages)]
+        self.Lorenz_by_age = Lorenz_by_age
+        Gini_by_age =[self.discrete_Gini_index(Lorenz_by_age[a])
+                      for a in range(n_ages)]
+        self.Gini_by_age =Gini_by_age
+        fig5 = plt.figure(figsize = (8, 6))
+        plt.plot(self.age_list, Gini_by_age, color='red', lw = 3)
+        fig5.savefig('Gini_coefficients_by_age.png', dpi=300)
+        
+    def discrete_Lorenz_curve(self, distribution):
         if type(distribution) is list:
             distribution = np.array(distribution)
         
@@ -222,8 +235,17 @@ class SIMModel:
         cum_N_share = np.cumsum(dist_filtered)/np.sum(dist_filtered)
         cum_N_share = np.insert(cum_N_share, 0 , 0.0)
         
-        discrete_Lorenz = np.array([cum_N_share, cum_Y_share])
+        Lorenz_curve = np.array([cum_N_share, cum_Y_share])
         
-        return discrete_Lorenz
+        return Lorenz_curve
+    
+    def discrete_Gini_index(self, Lorenz_curve):
+        Gini_contrib = [(Lorenz_curve[1, i-1] + Lorenz_curve[1, i])*(Lorenz_curve[0, i] - Lorenz_curve[0, i-1])*0.5
+                        for i in range(1, np.size(Lorenz_curve, 1))]
+        Gini_contrib.insert(0, Lorenz_curve[1, 1] *Lorenz_curve[0, 1] * 0.5)
+        
+        Gini_index = 0.5 -  np.sum(Gini_contrib)
+        
+        return Gini_index
         
         
