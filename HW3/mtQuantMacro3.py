@@ -100,15 +100,20 @@ class SIMModel:
         # Derive and plot Lorenz curve for earnings itself (not log earning)
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Calculate the Lorenz curve
-        Lorenz_Y20_original = np.cumsum(Y20_samples)/np.sum(Y20_samples)
-        self.Lorenz_Y20_original = Lorenz_Y20_original 
-                
-        # Plot the Lorenz curve
-        x = np.linspace(0, 1, self.n_samples)
-                
+        cum_Y20_share = np.cumsum(Y20_samples)/np.sum(Y20_samples)
+        cum_N_share =  np.linspace(0, 1, self.n_samples)
+        
+        Lorenz_Y20_original = np.array([cum_N_share, cum_Y20_share])
+                        
+        self.Lorenz_Y20_original = Lorenz_Y20_original
+        
+
+        # Plot the Lorenz curve        
         fig1 = plt.figure(figsize=(8, 6))
-        plt.plot(x, x, '-', linewidth = 0.5, color = 'green', label='perfect equality')
-        plt.plot(x, Lorenz_Y20_original, '-r',lw = 3, label='Lorenz curve for Y_20')
+        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0], 
+                 '-', lw = 0.5, color = 'green', label='perfect equality')
+        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
+                 '-r', lw = 3, label='Lorenz curve for Y_20')
         plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--', label='perfect inequality')
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
@@ -139,26 +144,15 @@ class SIMModel:
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Compute the Lorenz curve based on grid points 
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        m20_filtered = np.array(m20)[np.array(m20) > 0]
-        Y_grid_filterd = np.array(self.Y_grid)[np.array(m20) > 0]
-        Y_dist_filtered = m20_filtered * Y_grid_filterd
-        
-        # Calculate the Lorenz curve
-        Lorenz_Y20 = np.cumsum(Y_dist_filtered)/np.sum(Y_dist_filtered)
-        Lorenz_Y20 = np.insert(Lorenz_Y20, 0 , 0.0)
-        
+        Lorenz_Y20 = self.discrete_Lorenz(m20)
         self.Lorenz_Y20 = Lorenz_Y20
         
-        # Plot the Lorenz curve        
-        x2 = np.cumsum(m20_filtered)/np.sum(m20_filtered)
-        x2 = np.insert(x2, 0 , 0.0)
-        
-        self.x2 = x2
         fig3 = plt.figure(figsize=(8, 6))
-        plt.plot(x, x, '-', linewidth = 0.5, color = 'green', label='perfect equality')
-        plt.plot(x, Lorenz_Y20_original, color='blue', ls='dashed',
-                 label='Lorenz curve computed in (b)')
-        plt.plot(x2, Lorenz_Y20, '-r', lw = 3, label='Lorenz curve for Y_20')
+        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
+                 '-', linewidth = 0.5, color = 'green', label='perfect equality')
+        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
+                 color='blue', ls='dashed', label='Lorenz curve computed in (b)')
+        plt.plot(Lorenz_Y20[0], Lorenz_Y20[1], '-r', lw = 3, label='Lorenz curve for Y_20')
         plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--', label='perfect inequality')
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
@@ -167,6 +161,69 @@ class SIMModel:
         fig3.savefig('Lorenz_Y20.png', dpi=300)
 
 
+        # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        # Compute the Lorenz curve based on grid points 
+        # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+       
+        n_ages = len(self.age_list)
+        m_mat = np.empty((n_ages, self.n_grids))
+        
+        trans_mat = np.array(self.trans_mat)
+        m_mat[0, :] = m20
+        
+        m_a = np.array(m20).reshape(1, -1)
+        
+        for a in range(n_ages-1):
+            m_a_1 = m_a @ trans_mat
+            m_mat[a+1, :] = m_a_1.flatten()
+            m_a = deepcopy(m_a_1)
+        self.m_mat = m_mat
+        
+        # group for ages 20-25
+        y_20_25 = np.sum(m_mat[0:5, :], axis=0)
+        Lorenz_Y20_25 = self.discrete_Lorenz(y_20_25)
+        
+        # group for ages 40-45
+        y_40_45 = np.sum(m_mat[20:25, :], axis=0)
+        Lorenz_Y40_45 = self.discrete_Lorenz(y_40_45)
+        
+        # group for ages 60-65
+        y_60_65 = np.sum(m_mat[40:45, :], axis=0)
+        Lorenz_Y60_65 = self.discrete_Lorenz(y_60_65)
+        
+        fig4 = plt.figure(figsize=(8, 6))
+        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
+                 '-', linewidth = 0.5, color = 'green', label='perfect equality')
+        plt.plot(Lorenz_Y20_25[0], Lorenz_Y20_25[1],
+                 color='blue', ls='dashed', label='Ages 20-25')
+        plt.plot(Lorenz_Y40_45[0], Lorenz_Y40_45[1], 'purple', label='ages 40-45')
+        plt.plot(Lorenz_Y60_65[0], Lorenz_Y60_65[1],
+                 color='red', lw=3, label='Ages 60-65')
+        plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
+                   linestyles='--', label='perfect inequality')
+        plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
+                   linestyles='--')
+        plt.legend(frameon = False)
+        fig4.savefig('Lorenz_Y20.png', dpi=300)
+        
 
-            
+    def discrete_Lorenz(self, distribution):
+        if type(distribution) is list:
+            distribution = np.array(distribution)
+        
+        dist_filtered = distribution[distribution > 0]
+        Y_grid_filterd = np.array(self.Y_grid)[distribution > 0]
+        
+        # Calculate the cumulative share in terms of earnings
+        Y_contrib_filtered = dist_filtered * Y_grid_filterd
+        cum_Y_share = np.cumsum(Y_contrib_filtered)/np.sum(Y_contrib_filtered)
+        cum_Y_share = np.insert(cum_Y_share, 0 , 0.0)
+        
+        # Calculate the cumulative share in terms of samples
+        cum_N_share = np.cumsum(dist_filtered)/np.sum(dist_filtered)
+        cum_N_share = np.insert(cum_N_share, 0 , 0.0)
+        
+        discrete_Lorenz = np.array([cum_N_share, cum_Y_share])
+        
+        return discrete_Lorenz
+        
         
