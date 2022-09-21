@@ -16,7 +16,12 @@ For the detail of the course, see the syllabus available on [Juan's personal web
  I basically use Python, which is recommended by the lecturer, for this course's assignemnts. However, I might occasionally use MATLAB when I think it is more suited.
 
 
- ## Requirements
+## Requirements
 I use the latest version of Python and its basic packages (e.g. numpy). For MATLAB codes, I use MATLAB R2022a.
 
 In the codes in `HW1` and `HW2`, I use `freadapi` and `statsmodels` packages, which are not included in standard collections of Python packages. To use `freadapi`, you need to apply a API key to St. Louis Fed. The application is accepted online for free. 
+
+
+## Disclaimer
+This is my own programs used for my homework. Thus, it is not guaranteed that these codes are correct and what the lecturer expected. 
+My priority is to meet the submission deadlines. So, some functions in the programs might lack generality.
