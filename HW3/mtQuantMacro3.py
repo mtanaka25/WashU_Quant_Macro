@@ -23,13 +23,13 @@ from random import randrange, seed
 
 class SIMModel:
     def __init__(self,
-                 rho       = 0.96,
-                 var_eps   = 0.045,
-                 var_y0    = 0.38,
-                 n_grids   = 18,
-                 Omega     = 4,
+                 rho       = 0.9900,
+                 var_eps   = 0.0425,
+                 var_y20   = 0.2900,
+                 n_grids   = 10,
+                 Omega     = 3.0000,
                  age_range = (20, 65),
-                 n_draws   = 10000,
+                 n_draws   = 1000,
                  ) -> None:
         # Prepare list of ages
         age_list = [i for i in range(age_range[0], age_range[1]+1, 1)]  
@@ -37,8 +37,8 @@ class SIMModel:
         self.rho       = rho
         self.var_eps   = var_eps
         self.sig_eps   = np.sqrt(var_eps)
-        self.var_y0    = var_y0
-        self.sig_y0    = np.sqrt(var_y0)
+        self.var_y20   = var_y20
+        self.sig_y20   = np.sqrt(var_y20)
         self.n_grids   = n_grids
         self.Omega     = Omega
         self.age_list  = age_list
@@ -48,8 +48,8 @@ class SIMModel:
                 is_save_y_grid = True,
                 is_save_trans_mat = True):
         # Prepare y gird points
-        sig_y1  = np.sqrt(self.var_eps / ((1-self.rho)**2))
-        y_N     = self.Omega * sig_y1
+        sig_y21 = np.sqrt(self.var_eps / ((1-self.rho)**2))
+        y_N     = self.Omega * sig_y21
         y_grid  = np.linspace(-y_N, y_N, self.n_grids)        
         
         # Calculate the step size
@@ -77,4 +77,10 @@ class SIMModel:
         if seed != None:
             np.random.seed(seed)
         
-        Y0_samples = lognorm.rvs(self.sig_y0, size=self.n_samples)
+        y20_samples = lognorm.rvs(self.sig_y20, size=self.n_samples)
+        y20_samples = np.sort(y20_samples)
+        
+        Lorenz = np.cumsum(y20_samples)/np.sum(y20_samples)
+        
+        plt.plot(Lorenz, label='Lorenz curve for y_20')
+         
