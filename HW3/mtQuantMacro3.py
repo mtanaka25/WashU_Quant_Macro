@@ -21,6 +21,7 @@ from tabulate import tabulate
 from random import randrange, seed
 
 
+
 class SIMModel:
     def __init__(self,
                  rho       = 0.9900,
@@ -43,13 +44,25 @@ class SIMModel:
         self.Omega     = Omega
         self.age_list  = age_list
         self.n_samples = n_samples
-
-    def tauchen_discretize(self,
+        
+    def discretize(self, method,
                 is_save_y_grid = True,
-                is_save_trans_mat = True):
+                is_save_trans_mat = True): 
+        if method in ['tauchen', 'Tauchen', 'T', 't']:
+            print("\n Dscretizing the AR(1) process by Tauchen method")
+            self.tauchen_discretize(is_save_y_grid, is_save_trans_mat)
+        
+        elif method in ['rouwenhorst', 'Rouwenhorst', 'R', 'r']:
+            print("\n Dscretizing the AR(1) process by Rouwenhorst method")
+            self.rouwenhorst_discretize(is_save_y_grid, is_save_trans_mat)
+            
+        else:
+            raise Exception('"method" input much be "Tauchen" or "Rouwenhorst."')
+        
+        
+    def tauchen_discretize(self, is_save_y_grid, is_save_trans_mat):
         # Prepare y gird points
-        sig_y21 = np.sqrt(self.var_eps / (1-self.rho**2))
-        y_N     = self.Omega * sig_y21
+        y_N     = self.Omega * self.sig_y20
         y_grid  = np.linspace(-y_N, y_N, self.n_grids)
         Y_grid  = np.exp(y_grid)
 
@@ -78,9 +91,51 @@ class SIMModel:
             trans_mat_ij = ( norm.cdf((y_grid[j] - self.rho*y_grid[i] + h/2)/self.sig_eps)
                            - norm.cdf((y_grid[j] - self.rho*y_grid[i] - h/2)/self.sig_eps))
         return trans_mat_ij
+        
+        
+    def rouwenhorst_discretize(self, is_save_y_grid, is_save_trans_mat):
+        # Prepare y gird points
+        y_N     = self.sig_y20 * np.sqrt(self.n_grids - 1)
+        y_grid  = np.linspace(-y_N, y_N, self.n_grids)
+        Y_grid  = np.exp(y_grid)
+        
+        # Calculate the step size
+        h = (2 * y_N)/(self.n_grids-1)
+        
+        # parameter necessary for Rouwenhorst recursion
+        pi = 0.5 * (1 + self.rho)
+        
+        # N = 2
+        Pi_N = np.array([[pi, 1 - pi],
+                         [1 - pi, pi]])
+        
+        for n in range(3, self.n_grids+1, 1):
+            Pi_pre = deepcopy(Pi_N)
+            Pi_N1  = np.zeros((n,n))
+            Pi_N2  = np.zeros((n,n))
+            Pi_N3  = np.zeros((n,n))
+            Pi_N4  = np.zeros((n,n))
+            
+            Pi_N1[0:n-1, 0:n-1] = Pi_pre
+            Pi_N2[0:n-1, 1:n] = Pi_pre
+            Pi_N3[1:n, 1:n] = Pi_pre
+            Pi_N4[1:n, 0:n-1] = Pi_pre
+            
+            Pi_N = (pi * Pi_N1
+                    + (1 - pi) * Pi_N2
+                    + pi * Pi_N3
+                    + (1 - pi) * Pi_N4
+            )
+        
+        self.Y_grid = Y_grid
+        self.y_grid = y_grid
+        self.trans_mat = Pi_N
+        self.step_size = h
+
+        return y_grid, Pi_N
     
     
-    def run_simulation(self, fixed_seed=None):
+    def run_simulation(self, fname_header='model', fixed_seed=None):
         if fixed_seed != None:
             np.random.seed(fixed_seed)
         
@@ -93,7 +148,7 @@ class SIMModel:
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         fig0 = plt.figure(figsize=(8, 6))
         plt.hist(Y20_samples, bins=25, density=True)
-        fig0.savefig('Sample_histgram.png', dpi=300)
+        fig0.savefig(fname_header+'_Sample_histgram.png', dpi=300)
 
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -119,7 +174,7 @@ class SIMModel:
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--')
         plt.legend(frameon = False)
-        fig1.savefig('Lorenz_Y20_original.png', dpi=300)
+        fig1.savefig(fname_header+'_Lorenz_Y20_original.png', dpi=300)
 
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Calculate the probability of each grid point
@@ -137,7 +192,7 @@ class SIMModel:
         fig2 = plt.figure(figsize=(8, 6))
         plt.bar(self.Y_grid, m20)
 
-        fig2.savefig('PDF_Y20.png', dpi=300)
+        fig2.savefig(fname_header+'_PDF_Y20.png', dpi=300)
 
         self.m20 = m20
         
@@ -158,7 +213,7 @@ class SIMModel:
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--')
         plt.legend(frameon = False)
-        fig3.savefig('Lorenz_Y20.png', dpi=300)
+        fig3.savefig(fname_header+'_Lorenz_Y20.png', dpi=300)
 
 
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -203,7 +258,7 @@ class SIMModel:
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--')
         plt.legend(frameon = False)
-        fig4.savefig('Lorenz_groups.png', dpi=300)
+        fig4.savefig(fname_header+'_Lorenz_groups.png', dpi=300)
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Compute the Gini coefficient for each age
@@ -214,10 +269,11 @@ class SIMModel:
         self.Lorenz_by_age = Lorenz_by_age
         Gini_by_age =[self.discrete_Gini_index(Lorenz_by_age[a])
                       for a in range(n_ages)]
-        self.Gini_by_age =Gini_by_age
+        self.Gini_by_age = Gini_by_age
+        
         fig5 = plt.figure(figsize = (8, 6))
         plt.plot(self.age_list, Gini_by_age, color='red', lw = 3)
-        fig5.savefig('Gini_coefficients_by_age.png', dpi=300)
+        fig5.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)
         
     def discrete_Lorenz_curve(self, distribution):
         if type(distribution) is list:
@@ -249,3 +305,5 @@ class SIMModel:
         return Gini_index
         
         
+
+    
