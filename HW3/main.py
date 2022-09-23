@@ -112,6 +112,7 @@ plt.plot(model_R.age_list, model_R.Gini_by_age,
              color='purple', label='Rouwehhorst')
 plt.plot(model_R.age_list, SCF2019.Gini_by_age, 
              color='red', label='SCF 2019')
+plt.legend(frameon = False)
 fig3.savefig('Comparison_Gini_SCF2019.png', dpi=300)
 
 fig4 = plt.figure(figsize=(8, 6))
@@ -121,5 +122,29 @@ plt.plot(model_T.age_list, model_T.Gini_by_age,
 plt.plot(model_R.age_list, model_R.Gini_by_age, 
              color='purple', label='Rouwehhorst')
 plt.plot(model_R.age_list, SCF2004.Gini_by_age, 
-             color='red', label='SCF 2019')
+             color='red', label='SCF 2004')
+plt.legend(frameon = False)
 fig4.savefig('Comparison_Gini_SCF2004.png', dpi=300)
+
+param0 = [model_T.rho, model_T.sig_eps, model_T.sig_y20]
+optimal_param = SCF2004.recalibrate_AR_params(param0=param0)
+print('\n rho = {:.4f}'.format(optimal_param[0]))
+print('\n var_eps = {:.4f}'.format(optimal_param[1]**2))
+print('\n var_y20 = {:.4f}'.format(optimal_param[2]**2))
+
+model_T_recalib = SIMModel(rho=optimal_param[0],
+                           var_eps=optimal_param[1]**2,
+                           var_y20=optimal_param[2]**2)
+model_T_recalib.discretize(method='tauchen')
+model_T_recalib.run_simulation(is_plot=False)
+
+fig5 = plt.figure(figsize=(8, 6))
+plt.plot(model_T.age_list, model_T.Gini_by_age, 
+             color='blue', linestyle='dashed',
+             label='Original')
+plt.plot(model_T_recalib.age_list, model_T_recalib.Gini_by_age, 
+             color='purple', label='Recalibration')
+plt.plot(model_R.age_list, SCF2004.Gini_by_age, 
+             color='red', label='SCF 2004')
+plt.legend(frameon = False)
+fig5.savefig('Result_of_recalibration.png', dpi=300)

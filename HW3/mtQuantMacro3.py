@@ -10,7 +10,6 @@ at Washington University in St. Louis.
 Create Sep 20, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
-from http.cookies import SimpleCookie
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
@@ -18,10 +17,8 @@ import numpy as np
 from scipy.stats import norm, lognorm
 from copy import deepcopy
 from tabulate import tabulate
-
+from scipy.optimize import minimize
 import pandas as pd
-from statsmodels.tsa.filters.hp_filter import hpfilter
-from statsmodels.tsa.ar_model import AutoReg, AutoRegResults
 
 
 class SIMModel_super:
@@ -33,7 +30,7 @@ class SIMModel_super:
                         for i in range(1, np.size(Lorenz_curve, 1))]
         Gini_contrib.insert(0, Lorenz_curve[1, 1] *Lorenz_curve[0, 1] * 0.5)
         
-        Gini_index = 0.5 -  np.sum(Gini_contrib)
+        Gini_index = (0.5 -  np.sum(Gini_contrib)) / 0.5
         
         return Gini_index
         
@@ -155,7 +152,7 @@ class SIMModel(SIMModel_super):
         return y_grid, Pi_N
     
     
-    def run_simulation(self, fname_header='model', fixed_seed=None):
+    def run_simulation(self, fname_header='model', fixed_seed=None, is_plot=True):
         if fixed_seed != None:
             np.random.seed(fixed_seed)
         
@@ -166,9 +163,10 @@ class SIMModel(SIMModel_super):
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Derive and plot Lorenz curve for earnings itself (not log earning)
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        fig0 = plt.figure(figsize=(8, 6))
-        plt.hist(Y20_samples, bins=25, density=True)
-        fig0.savefig(fname_header+'_Sample_histgram.png', dpi=300)
+        if is_plot:
+            fig0 = plt.figure(figsize=(8, 6))
+            plt.hist(Y20_samples, bins=25, density=True)
+            fig0.savefig(fname_header+'_Sample_histgram.png', dpi=300)
         
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -183,18 +181,19 @@ class SIMModel(SIMModel_super):
         self.Lorenz_Y20_original = Lorenz_Y20_original
         
         
-        # Plot the Lorenz curve        
-        fig1 = plt.figure(figsize=(8, 6))
-        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0], 
-                 '-', lw = 0.5, color = 'green', label='perfect equality')
-        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
-                 '-r', lw = 3, label='Lorenz curve for Y_20')
-        plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
-                   linestyles='--', label='perfect inequality')
-        plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
-                   linestyles='--')
-        plt.legend(frameon = False)
-        fig1.savefig(fname_header+'_Lorenz_Y20_original.png', dpi=300)
+        if is_plot:
+            # Plot the Lorenz curve
+            fig1 = plt.figure(figsize=(8, 6))
+            plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0], 
+                     '-', lw = 0.5, color = 'green', label='perfect equality')
+            plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
+                    '-r', lw = 3, label='Lorenz curve for Y_20')
+            plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
+                       linestyles='--', label='perfect inequality')
+            plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
+                       linestyles='--')
+            plt.legend(frameon = False)
+            fig1.savefig(fname_header+'_Lorenz_Y20_original.png', dpi=300)
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Calculate the probability of each grid point
@@ -208,13 +207,12 @@ class SIMModel(SIMModel_super):
         m20.insert(0, 
             sum((y20_samples <= self.y_grid[0]+h/2))/self.n_samples)
         m20.append(1 - sum(m20))
-        
-        fig2 = plt.figure(figsize=(8, 6))
-        plt.bar(self.Y_grid, m20)
-        
-        fig2.savefig(fname_header+'_PDF_Y20.png', dpi=300)
-        
         self.m20 = m20
+        
+        if is_plot:
+            fig2 = plt.figure(figsize=(8, 6))
+            plt.bar(self.Y_grid, m20)
+            fig2.savefig(fname_header+'_PDF_Y20.png', dpi=300)
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Compute the Lorenz curve based on grid points 
@@ -222,18 +220,19 @@ class SIMModel(SIMModel_super):
         Lorenz_Y20 = self.discrete_Lorenz_curve(m20)
         self.Lorenz_Y20 = Lorenz_Y20
         
-        fig3 = plt.figure(figsize=(8, 6))
-        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
-                 '-', linewidth = 0.5, color = 'green', label='perfect equality')
-        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
-                 color='blue', ls='dashed', label='Lorenz curve computed in (b)')
-        plt.plot(Lorenz_Y20[0], Lorenz_Y20[1], '-r', lw = 3, label='Lorenz curve for Y_20')
-        plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
-                   linestyles='--', label='perfect inequality')
-        plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
-                   linestyles='--')
-        plt.legend(frameon = False)
-        fig3.savefig(fname_header+'_Lorenz_Y20.png', dpi=300)
+        if is_plot:
+            fig3 = plt.figure(figsize=(8, 6))
+            plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
+                     '-', linewidth = 0.5, color = 'green', label='perfect equality')
+            plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
+                     color='blue', ls='dashed', label='Lorenz curve computed in (b)')
+            plt.plot(Lorenz_Y20[0], Lorenz_Y20[1], '-r', lw = 3, label='Lorenz curve for Y_20')
+            plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
+                       linestyles='--', label='perfect inequality')
+            plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
+                       linestyles='--')
+            plt.legend(frameon = False)
+            fig3.savefig(fname_header+'_Lorenz_Y20.png', dpi=300)
         
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -264,20 +263,21 @@ class SIMModel(SIMModel_super):
         y_60_65 = np.sum(m_mat[40:45, :], axis=0)
         Lorenz_Y60_65 = self.discrete_Lorenz_curve(y_60_65)
         
-        fig4 = plt.figure(figsize=(8, 6))
-        plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
-                 '-', linewidth = 0.5, color = 'green', label='perfect equality')
-        plt.plot(Lorenz_Y20_25[0], Lorenz_Y20_25[1],
-                 color='blue', ls='dashed', label='Ages 20-25')
-        plt.plot(Lorenz_Y40_45[0], Lorenz_Y40_45[1], 'purple', label='ages 40-45')
-        plt.plot(Lorenz_Y60_65[0], Lorenz_Y60_65[1],
-                 color='red', lw=3, label='Ages 60-65')
-        plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
-                   linestyles='--', label='perfect inequality')
-        plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
-                   linestyles='--')
-        plt.legend(frameon = False)
-        fig4.savefig(fname_header+'_Lorenz_groups.png', dpi=300)
+        if is_plot:
+            fig4 = plt.figure(figsize=(8, 6))
+            plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
+                     '-', linewidth = 0.5, color = 'green', label='perfect equality')
+            plt.plot(Lorenz_Y20_25[0], Lorenz_Y20_25[1],
+                     color='blue', ls='dashed', label='Ages 20-25')
+            plt.plot(Lorenz_Y40_45[0], Lorenz_Y40_45[1], 'purple', label='ages 40-45')
+            plt.plot(Lorenz_Y60_65[0], Lorenz_Y60_65[1],
+                     color='red', lw=3, label='Ages 60-65')
+            plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
+                       linestyles='--', label='perfect inequality')
+            plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
+                       linestyles='--')
+            plt.legend(frameon = False)
+            fig4.savefig(fname_header+'_Lorenz_groups.png', dpi=300)
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Compute the Gini coefficient for each age
@@ -290,9 +290,11 @@ class SIMModel(SIMModel_super):
                       for a in range(n_ages)]
         self.Gini_by_age = Gini_by_age
         
-        fig5 = plt.figure(figsize = (8, 6))
-        plt.plot(self.age_list, Gini_by_age, color='red', lw = 3)
-        fig5.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)
+        if is_plot:
+            fig5 = plt.figure(figsize = (8, 6))
+            plt.plot(self.age_list, Gini_by_age, color='red', lw = 3)
+            fig5.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)
+        
         
     def discrete_Lorenz_curve(self, distribution):
         if type(distribution) is list:
@@ -403,4 +405,31 @@ class SCF_hetero_income(SIMModel_super):
         
         fig = plt.figure(figsize = (8, 6))
         plt.plot(range(20, 66, 1), Gini_by_age, color='red', lw = 3)
-        fig.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)     
+        fig.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)
+        
+    def recalibrate_AR_params(self, param0):
+        # This is a trick to restrict rho in [0,1]
+        param0[0] = param0[0]/(1 - param0[0])
+        minimize_result = minimize(self.diff_obsGini_TauchenGini, param0)
+        
+        optimal_param = minimize_result.x
+        optimal_param[0] = abs(optimal_param[0])/(1 + abs(optimal_param[0]))
+        return optimal_param
+    
+    def diff_obsGini_TauchenGini(self, param0):
+        # Below is the trick to estimate rho in [0,1]
+        rho     = abs(param0[0])/(1 + abs(param0[0]))
+        var_eps = param0[1]**2
+        var_y20 = param0[2]**2
+        
+        model = SIMModel(rho     = rho,
+                         var_eps = var_eps,
+                         var_y20 = var_y20)
+        model.discretize(method='tauchen')
+        model.run_simulation(is_plot=False)
+        
+        diff = [abs(self.Gini_by_age[i] - model.Gini_by_age[i])
+                for i in range(len(model.age_list))]
+        diff = np.sum(diff)
+        return diff
+        
