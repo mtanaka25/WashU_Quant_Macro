@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
 import numpy as np
-from scipy.stats import norm, lognorm
-from copy import deepcopy
-from tabulate import tabulate
-from scipy.optimize import minimize
 import pandas as pd
+import time
+from copy import deepcopy
+from scipy.stats import norm, lognorm
+from scipy.optimize import minimize
 
 
 class SIMModel_super:
@@ -59,21 +59,23 @@ class SIMModel(SIMModel_super):
         self.n_samples = n_samples
         
     def discretize(self, method,
-                is_save_y_grid = True,
-                is_save_trans_mat = True): 
+                is_write_out_discretization_result = True,
+                is_quiet = False): 
         if method in ['tauchen', 'Tauchen', 'T', 't']:
-            print("\n Dscretizing the AR(1) process by Tauchen method")
-            self.tauchen_discretize(is_save_y_grid, is_save_trans_mat)
+            if not is_quiet:
+                print("\n Dscretizing the AR(1) process by Tauchen method")
+            self.tauchen_discretize(is_write_out_discretization_result)
         
         elif method in ['rouwenhorst', 'Rouwenhorst', 'R', 'r']:
-            print("\n Dscretizing the AR(1) process by Rouwenhorst method")
-            self.rouwenhorst_discretize(is_save_y_grid, is_save_trans_mat)
+            if not is_quiet:
+                print("\n Dscretizing the AR(1) process by Rouwenhorst method")
+            self.rouwenhorst_discretize(is_write_out_discretization_result)
             
         else:
             raise Exception('"method" input much be "Tauchen" or "Rouwenhorst."')
         
         
-    def tauchen_discretize(self, is_save_y_grid, is_save_trans_mat):
+    def tauchen_discretize(self, is_write_out_discretization_result):
         # Prepare y gird points
         y_N     = self.Omega * self.sig_y20
         y_grid  = np.linspace(-y_N, y_N, self.n_grids)
@@ -82,17 +84,21 @@ class SIMModel(SIMModel_super):
         # Calculate the step size
         h = (2 * y_N)/(self.n_grids-1)
         
-        # 
+        # Construct the transition matrix
         trans_mat = [ 
             [self.tauchen_trans_mat_ij(i, j, y_grid, h) for j in range(self.n_grids)]
             for i in range(self.n_grids)]
+            
+        if is_write_out_discretization_result:
+            np.savetxt('Tauchen_Y_grid.csv', Y_grid, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+            np.savetxt('Tauchen_trans_mat.csv', trans_mat, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
         
         self.Y_grid = Y_grid
         self.y_grid = y_grid
         self.trans_mat = np.array(trans_mat)
         self.step_size = h
-        
-        return y_grid, trans_mat
     
     
     def tauchen_trans_mat_ij(self, i, j, y_grid, h):
@@ -106,7 +112,7 @@ class SIMModel(SIMModel_super):
         return trans_mat_ij
         
         
-    def rouwenhorst_discretize(self, is_save_y_grid, is_save_trans_mat):
+    def rouwenhorst_discretize(self, is_write_out_discretization_result):
         # Prepare y gird points
         y_N     = self.sig_y20 * np.sqrt(self.n_grids - 1)
         y_grid  = np.linspace(-y_N, y_N, self.n_grids)
@@ -121,7 +127,7 @@ class SIMModel(SIMModel_super):
         # N = 2
         Pi_N = np.array([[pi, 1 - pi],
                          [1 - pi, pi]])
-        
+             
         for n in range(3, self.n_grids+1, 1):
             Pi_pre = deepcopy(Pi_N)
             Pi_N1  = np.zeros((n,n))
@@ -129,21 +135,26 @@ class SIMModel(SIMModel_super):
             Pi_N3  = np.zeros((n,n))
             Pi_N4  = np.zeros((n,n))
             
-            Pi_N1[0:n-1, 0:n-1] = Pi_pre
-            Pi_N2[0:n-1, 1:n] = Pi_pre
+            Pi_N1[:n-1, :n-1] = Pi_pre
+            Pi_N2[:n-1, 1:n] = Pi_pre
             Pi_N3[1:n, 1:n] = Pi_pre
-            Pi_N4[1:n, 0:n-1] = Pi_pre
+            Pi_N4[1:n, :n-1] = Pi_pre
             
             Pi_N = (pi * Pi_N1
                     + (1 - pi) * Pi_N2
                     + pi * Pi_N3
                     + (1 - pi) * Pi_N4
             )
-            
             # Divide all but the top and bottom rows by two so that the 
             # elements in each row sum to one (Kopecky & Suen[2010, RED]).
-            Pi_N[1:-2, :] *= 0.5
-        
+            Pi_N[1:-1, :] *= 0.5
+            
+        if is_write_out_discretization_result:
+            np.savetxt('Rouwenhorst_Y_grid.csv', Y_grid, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+            np.savetxt('Rouwenhorst_trans_mat.csv', Pi_N, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+            
         self.Y_grid = Y_grid
         self.y_grid = y_grid
         self.trans_mat = Pi_N
@@ -166,7 +177,9 @@ class SIMModel(SIMModel_super):
         if is_plot:
             fig0 = plt.figure(figsize=(8, 6))
             plt.hist(Y20_samples, bins=25, density=True)
-            fig0.savefig(fname_header+'_Sample_histgram.png', dpi=300)
+            #fig0.subplots_adjust(left=1, right=1, bottom=1, top=1)
+            fig0.savefig(fname_header+'_Sample_histgram.png', 
+                         dpi=300, bbox_inches='tight', pad_inches=0)
         
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -193,7 +206,8 @@ class SIMModel(SIMModel_super):
             plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                        linestyles='--')
             plt.legend(frameon = False)
-            fig1.savefig(fname_header+'_Lorenz_Y20_original.png', dpi=300)
+            fig1.savefig(fname_header+'_Lorenz_Y20_original.png', 
+                        dpi=300, bbox_inches='tight', pad_inches=0)
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Calculate the probability of each grid point
@@ -212,10 +226,11 @@ class SIMModel(SIMModel_super):
         if is_plot:
             fig2 = plt.figure(figsize=(8, 6))
             plt.bar(self.Y_grid, m20)
-            fig2.savefig(fname_header+'_PDF_Y20.png', dpi=300)
+            fig2.savefig(fname_header+'_PDF_Y20.png',
+                        dpi=300, bbox_inches='tight', pad_inches=0)      
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        # Compute the Lorenz curve based on grid points 
+        # Compute the Lorenz curve for Y20 based on grid points 
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         Lorenz_Y20 = self.discrete_Lorenz_curve(m20)
         self.Lorenz_Y20 = Lorenz_Y20
@@ -224,19 +239,20 @@ class SIMModel(SIMModel_super):
             fig3 = plt.figure(figsize=(8, 6))
             plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
                      '-', linewidth = 0.5, color = 'green', label='perfect equality')
+            plt.plot(Lorenz_Y20[0], Lorenz_Y20[1], '-r', lw = 3, label='Lorenz curve for Y_20')
             plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[1],
                      color='blue', ls='dashed', label='Lorenz curve computed in (b)')
-            plt.plot(Lorenz_Y20[0], Lorenz_Y20[1], '-r', lw = 3, label='Lorenz curve for Y_20')
             plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
                        linestyles='--', label='perfect inequality')
             plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                        linestyles='--')
             plt.legend(frameon = False)
-            fig3.savefig(fname_header+'_Lorenz_Y20.png', dpi=300)
+            fig3.savefig(fname_header+'_Lorenz_Y20.png',
+                        dpi=300, bbox_inches='tight', pad_inches=0)
         
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        # Compute the Lorenz curve based on grid points 
+        # Compute the Lorenz curves for 3 age groups
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+       
         n_ages = len(self.age_list)
         m_mat = np.empty((n_ages, self.n_grids))
@@ -267,17 +283,18 @@ class SIMModel(SIMModel_super):
             fig4 = plt.figure(figsize=(8, 6))
             plt.plot(Lorenz_Y20_original[0], Lorenz_Y20_original[0],
                      '-', linewidth = 0.5, color = 'green', label='perfect equality')
-            plt.plot(Lorenz_Y20_25[0], Lorenz_Y20_25[1],
-                     color='blue', ls='dashed', label='Ages 20-25')
-            plt.plot(Lorenz_Y40_45[0], Lorenz_Y40_45[1], 'purple', label='ages 40-45')
             plt.plot(Lorenz_Y60_65[0], Lorenz_Y60_65[1],
-                     color='red', lw=3, label='Ages 60-65')
+                     color='r', lw=3, label='Ages 60-65')
+            plt.plot(Lorenz_Y40_45[0], Lorenz_Y40_45[1], 'purple', label='ages 40-45')
+            plt.plot(Lorenz_Y20_25[0], Lorenz_Y20_25[1],
+                     color='b', ls='dashed', label='Ages 20-25')
             plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
                        linestyles='--', label='perfect inequality')
             plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                        linestyles='--')
             plt.legend(frameon = False)
-            fig4.savefig(fname_header+'_Lorenz_groups.png', dpi=300)
+            fig4.savefig(fname_header+'_Lorenz_groups.png',
+                        dpi=300, bbox_inches='tight', pad_inches=0)
         
         # -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         # Compute the Gini coefficient for each age
@@ -292,8 +309,9 @@ class SIMModel(SIMModel_super):
         
         if is_plot:
             fig5 = plt.figure(figsize = (8, 6))
-            plt.plot(self.age_list, Gini_by_age, color='red', lw = 3)
-            fig5.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)
+            plt.plot(self.age_list, Gini_by_age, color='r')
+            fig5.savefig(fname_header+'_Gini_coefficients_by_age.png',
+                        dpi=300, bbox_inches='tight', pad_inches=0)
         
         
     def discrete_Lorenz_curve(self, distribution):
@@ -379,16 +397,17 @@ class SCF_hetero_income(SIMModel_super):
         plt.plot(np.linspace(0,1,5), np.linspace(0,1,5),
                  '-', linewidth = 0.5, color = 'green', label='perfect equality')
         plt.plot(Lorenz_Y20_25[0], Lorenz_Y20_25[1],
-                 color='blue', ls='dashed', label='Ages 20-25')
+                 color='b', ls='dashed', label='Ages 20-25')
         plt.plot(Lorenz_Y40_45[0], Lorenz_Y40_45[1], 'purple', label='ages 40-45')
         plt.plot(Lorenz_Y60_65[0], Lorenz_Y60_65[1],
-                 color='red', lw=3, label='Ages 60-65')
+                 color='r', lw=3, label='Ages 60-65')
         plt.hlines(0, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--', label='perfect inequality')
         plt.vlines(1, 0, 1, color='black', linewidth = 0.5, 
                    linestyles='--')
         plt.legend(frameon = False)
-        fig0.savefig(fname_header+'_Lorenz_by_group.png', dpi=300)        
+        fig0.savefig(fname_header+'_Lorenz_by_group.png',
+                    dpi=300, bbox_inches='tight', pad_inches=0)
         
         
     def calc_Gini_index_by_age(self, fname_header='SCF'):
@@ -404,14 +423,26 @@ class SCF_hetero_income(SIMModel_super):
         self.Gini_by_age = Gini_by_age
         
         fig = plt.figure(figsize = (8, 6))
-        plt.plot(range(20, 66, 1), Gini_by_age, color='red', lw = 3)
-        fig.savefig(fname_header+'_Gini_coefficients_by_age.png', dpi=300)
+        plt.plot(range(20, 66, 1), Gini_by_age, color='r')
+        fig.savefig(fname_header+'_Gini_coefficients_by_age.png',
+                    dpi=300, bbox_inches='tight', pad_inches=0)
         
     def recalibrate_AR_params(self, param0):
         # This is a trick to restrict rho in [0,1]
         param0[0] = param0[0]/(1 - param0[0])
-        minimize_result = minimize(self.diff_obsGini_TauchenGini, param0)
-        
+        print('\n Recalibrating the parameters...')
+        print('\n This process will take much time. Please be patient.')
+        tic = time.time()
+        minimize_result = minimize(self.diff_obsGini_TauchenGini, param0,
+                                   method='Nelder-Mead', tol=1e-2,
+                                   options={'maxiter': 10**5, 'maxfev': 10**5,
+                                            'disp': True}
+                                   )
+        self.minimize_result = minimize_result
+        toc = time.time()
+        self.elapsed_time = toc - tic
+        print('\n Finished recalibrating!')
+
         optimal_param = minimize_result.x
         optimal_param[0] = abs(optimal_param[0])/(1 + abs(optimal_param[0]))
         return optimal_param
@@ -425,7 +456,9 @@ class SCF_hetero_income(SIMModel_super):
         model = SIMModel(rho     = rho,
                          var_eps = var_eps,
                          var_y20 = var_y20)
-        model.discretize(method='tauchen')
+        model.discretize(method='tauchen', 
+                         is_write_out_discretization_result = False,
+                         is_quiet=True)
         model.run_simulation(is_plot=False)
         
         diff = [abs(self.Gini_by_age[i] - model.Gini_by_age[i])
