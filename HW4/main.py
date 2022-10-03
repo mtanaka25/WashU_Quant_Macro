@@ -17,15 +17,16 @@ Create Sep 27, 2022 (Masaki Tanaka, Washington University in St. Louis)
 # =========================================================================
 # Settings
 # =========================================================================
-
-do_Q1a_c = 1
-do_Q1d1  = 1
-do_Q1d2  = 1
+# Set 1 or True to solve the question.
+# Set 0 or False to skip the question.
+do_Q1a_c = 0
+do_Q1d1  = 0
+do_Q1d2  = 0
 do_Q1e   = 1
-do_Q1f   = 1
-do_Q2a   = 1
-do_Q2b   = 1
-do_Q2c   = 1
+do_Q1f   = 0
+do_Q2a   = 0
+do_Q2b   = 0
+do_Q2c   = 0
 
 # =========================================================================
 # Load packages
@@ -147,16 +148,16 @@ if do_Q2a:
 
 if do_Q2b:
     # solve the model by policy iteration
-    model_2ab.policy_func_iter()
+    model_2ab.policy_func_iter(fname='Q2_ab.png')
     plot_Q2_graph(model_1a, model_2ab,  0, 'Q2b1.png')
     plot_Q2_graph(model_1a, model_2ab, 10, 'Q2b2.png')
     
 if do_Q2c:
-    model_2c_woT = IFP(a_lb = -0.2)
+    model_2c_woT = IFP(a_lb = -1.)
     model_2c_woT.discretize(method='Rouwenhorst')
     model_2c_woT.policy_func_iter(fname='Q2_model_wo_T.png')
     
-    model_2c_wT  = IFP_w_taxation(a_lb = -0.2)
+    model_2c_wT  = IFP_w_taxation(a_lb = -1.)
     model_2c_wT.discretize(method='Rouwenhorst')
     model_2c_wT.policy_func_iter(fname='Q2_model_w_T.png')
     
