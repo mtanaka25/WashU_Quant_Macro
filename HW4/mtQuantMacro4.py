@@ -19,7 +19,33 @@ from copy import deepcopy
 from scipy.stats import norm
 from scipy.optimize import fsolve, root, bisect
 
+# =-=-=-=-=-=-=-=-= functions used in HW4 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+def plot_Q2_graph(model1, model2, a2plot, fname):
+    if model1.n_grids_a != model2.n_grids_a:
+        raise Exception('Two instances seem to have been solved in different ways.')
+    
+    a_idx = get_nearest_idx(a2plot, model1.a_grid)
+    
+    model1_data = model1.policy_func[:, a_idx]
+    model2_data = model2.policy_func[:, a_idx]
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(model1.y_grid, model1_data, lw=1.5, c='blue', ls='dashed',
+             label='Model w/ taxation')
+    ax.plot(model2.y_grid, model2_data, lw=3.0, c='red', 
+             label='Model w/o taxation')
+    ax.set_ylabel("asset holding tomorrow (a')")
+    ax.set_xlabel("income today (y)")
+    ax.legend(frameon = False)
+    fig.savefig(fname, dpi=150, bbox_inches='tight', pad_inches=0)
 
+        
+def get_nearest_idx(x, array):
+    nearest_idx = np.abs(array - x).argmin()
+    return nearest_idx
+    
+
+# =-=-=-=-=-=-=-=-= classes for interpolation =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 class piecewise_intrpl: # pair-wised linear interpolation
     def __init__(self, x, fx):
         if x is list:
@@ -97,6 +123,7 @@ class rbf_intrpl: # radial basis function interpolation
         return fx_bar
 
 
+# =-=-=-=-=-= classes for income fluctuation problem =-=-=-=-=-=-=-=-=-=-=-=-=-
 class IFP: # Income fluctuation problem
     def __init__(self,
                  beta      = 0.9400, # discount factor
@@ -107,7 +134,7 @@ class IFP: # Income fluctuation problem
                  var_eps   = 0.0426, # variance of income shock
                  n_grids_y = 17, # # of gird points for y
                  n_grids_a = 500, # # of gird points for a 
-                 a_range   = (0, 300), # range of a interval # TODO! Choose this value wisely.  
+                 a_range   = (0, 350), # range of a interval
                  Omega     = 3.0000, # half of interval range (for tauchen)
                  ):
         # calculate sigma_y based on rho and var_eps
@@ -116,6 +143,9 @@ class IFP: # Income fluctuation problem
         var_lny = sig_lny**2
         
         # prepare the grid points for a
+        if a_range != a_lb:
+            a_range = (a_lb, a_range[1])
+        
         a_grid = np.linspace(a_range[0], a_range[1], n_grids_a)
         
         # Store the given parameters as instance attributes
@@ -230,18 +260,7 @@ class IFP: # Income fluctuation problem
 
         self.lny_grid, self.y_grid, self.trans_mat, self.step_size \
             = lny_grid, y_grid, Pi_N, h
-    
-
-    def utility(self, y_td, a_td, a_tmrw):
-        # Calculate consumption as the residual in the budget constraint
-        c_td = self.R*a_td + y_td - a_tmrw
-        # If consumption is negative, assign NaN
-        c_td[c_td < 0] = np.nan
-        # Compute the instantaneous utility
-        u_td = c_td**(1-self.sig) / (1 - self.sig)
         
-        return u_td
-    
     
     def muc(self, y_td, a_td, a_tmrw): # marginal utility of consumption
         # Calculate consumption as the residual in the budget constraint
@@ -260,7 +279,7 @@ class IFP: # Income fluctuation problem
         return muc_td
 
     def get_nearest_a_idx(self, continuous_a):
-        nearest_idx = np.abs(self.a_grid - continuous_a).argmin()
+        nearest_idx = get_nearest_idx(continuous_a, self.a_grid)
         return nearest_idx    
     
     def _check_borrowing_constraint(self, y_td_idx, a_td_idx, a_tmrw_idx_mat):
@@ -318,18 +337,18 @@ class IFP: # Income fluctuation problem
         
         # The difference between LHS and RHS (EE = Euler equation)
         EE_resid_vec = LHS - RHS
-               
+
         # find the value for a' most consistent with the Euler equation
         # and return its index
         # Note: Monotonicity of marginal utility is exploited.
-        optimal_a_idx = np.nanargmin(abs(EE_resid_vec))
-        
+        optimal_a_idx = np.nanargmin(abs(EE_resid_vec))        
         return optimal_a_idx
     
     
     def policy_func_iter(self,
                          tol = 1E-5,
-                         max_iter = 10000
+                         max_iter = 10000,
+                         fname = 'policy_func_result'
                          ):
         a_idx_vec = np.arange(self.n_grids_a).reshape(1, -1) # horizontal direction: asset
 
@@ -367,7 +386,7 @@ class IFP: # Income fluctuation problem
         toc = time.perf_counter()
         
         # Store the result as instance attributes
-        self.elasped_time = toc - tic
+        self.elasped_time     = toc - tic
         self.policy_idx_func = a_hat_idx_mat
         self.policy_func     = self.a_grid[a_hat_idx_mat]
             
@@ -382,14 +401,15 @@ class IFP: # Income fluctuation problem
         plt.plot(self.a_grid, self.a_grid, 
                      ls='dotted', lw = 1, color = 'gray', label='45 degree line')
         plt.legend(frameon = False)
-        fig1.savefig('Q1c.png', dpi=150, bbox_inches='tight', pad_inches=0)
+        fig1.savefig(fname, dpi=150, bbox_inches='tight', pad_inches=0)
     
     
     def policy_func_iter_w_intrpl(self,
                                   tol = 1E-5,
                                   max_iter = 100000,
                                   intrpl_method = 'piecewise',
-                                  solving_method = 'bisection'
+                                  solving_method = 'bisection',
+                                  fname = None
                                   ):
         if intrpl_method == 'piecewise':
             interpolate = piecewise_intrpl
@@ -448,7 +468,8 @@ class IFP: # Income fluctuation problem
         self.policy_func     = self.a_grid[a_hat_idx_mat]
         
         # Plot the result
-        fname = 'Q1' + intrpl_method +'_' + solving_method + '.png'
+        if fname is None:
+            fname = 'Q1' + intrpl_method +'_' + solving_method + '.png'
         
         fig1 = plt.figure(figsize=(8, 6))
         plt.plot(self.a_grid, self.policy_func[0, :], 
@@ -641,32 +662,35 @@ class IFP: # Income fluctuation problem
     
     def endogenous_grid_method(self,
                                 tol = 1E-5,
-                                max_iter = 10000,
-                                intrpl_method = 'piecewise'
+                                max_iter = 1,
+                                intrpl_method = 'piecewise',
+                                fname = 'endogenous_grid.png'
                                 ):
+
         def backward_induction_for_a(y_td_idx, a_tmrw_idx, optimal_a_mapping):
             y_td, a_tmrw = self.y_grid[y_td_idx], self.a_grid[a_tmrw_idx]
             
             # Possible asset holdings day after tomorrow (matrix)
             a_dat_idx_vec = (optimal_a_mapping)[:, a_tmrw_idx]
             a_dat_vec = self.a_grid[a_dat_idx_vec].reshape(-1, 1)
+
             # Possible marginal utility tomorrow
             muc_tmrw_vec = self.muc(y_td = (self.y_grid).reshape(-1,1),
                                     a_td = a_tmrw,
                                     a_tmrw = a_dat_vec) 
             
+
             # transition probabilities conditional on realized y today
             trans_prob = self.trans_mat[y_td_idx, :]
             
             # Expected (and subjectively discounted) marginal utility tomrrow 
-            RHS = self.beta * self.R * trans_prob @ muc_tmrw_vec
-            
+            RHS = np.asscalar(self.beta * self.R * trans_prob @ muc_tmrw_vec)
+  
             # today's consumnption consistent with the above RHS
-            c_td = RHS**(self.sig) 
-            
+            c_td = RHS**(-1/self.sig) 
+        
             # calculate today's asset holding as the residual of budget constraint
             a_td = (c_td + a_tmrw - y_td)/self.R
-            
 
             return a_td
         
@@ -677,25 +701,25 @@ class IFP: # Income fluctuation problem
         else:
             raise Exception('Choose a method from "piecewise" and "radial_basis".')
         
-        a_idx_vec = np.arange(self.n_grids_a).reshape(1, -1) # horizontal direction: asset
-
         # Initial guess for the policy function (Use the 45 degree line)
+        a_idx_vec = np.arange(self.n_grids_a).reshape(1, -1) # horizontal direction: asset
         a_hat_idx_mat = np.tile(a_idx_vec, (self.n_grids_y, 1))
+        
         
         # Initialize while loop
         diff, iteration = 100, 0
         
         tic = time.perf_counter()
         
-        while (diff > tol) & (iteration <= max_iter):
+        while (diff > tol) & (iteration < max_iter):
             # Prepare a guess for the policy function
             a_hat_idx_guess_mat = deepcopy(a_hat_idx_mat)
-        
+
             a_td_mat = np.array([
                 [backward_induction_for_a(i, j, a_hat_idx_guess_mat) for j in range(self.n_grids_a)]
                 for i in range(self.n_grids_y)
                 ])
-                        
+
             for i in range(self.n_grids_y): # loop wrt grid points for y
                 # Constructing the bijection from a to a'
                 mapping_i = interpolate(x = a_td_mat[i, :],
@@ -707,7 +731,7 @@ class IFP: # Income fluctuation problem
                     self.get_nearest_a_idx(a_tmrw_i)
                     for a_tmrw_i in optimal_a_tmrw
                     ])
-                
+
                 a_hat_idx_mat[i, :] = optimal_a_tmrw_idx
             
             diff = np.max(abs(self.a_grid[a_hat_idx_mat] - self.a_grid[a_hat_idx_guess_mat]))
@@ -720,9 +744,9 @@ class IFP: # Income fluctuation problem
         self.elasped_time = toc - tic
         self.policy_idx_func = a_hat_idx_mat
         self.policy_func     = self.a_grid[a_hat_idx_mat]
-            
+
         # Plot the result
-        fig1 = plt.figure(figsize=(8, 6))
+        fig = plt.figure(figsize=(8, 6))
         plt.plot(self.a_grid, self.policy_func[0, :], 
                      '-', lw = 1.5, color = 'red', label='Policy function: y_1')
         plt.plot(self.a_grid, self.policy_func[7, :], 
@@ -732,9 +756,151 @@ class IFP: # Income fluctuation problem
         plt.plot(self.a_grid, self.a_grid, 
                      ls='dotted', lw = 1, color = 'gray', label='45 degree line')
         plt.legend(frameon = False)
-        fig1.savefig('Q1f.png', dpi=150, bbox_inches='tight', pad_inches=0)       
+        fig.savefig(fname, dpi=150, bbox_inches='tight', pad_inches=0)
     
         
+class IFP_w_taxation(IFP):
+    def __init__(self,
+                 beta      = 0.9400, # discount factor
+                 sig       = 2.0000, # inverse IES 
+                 R         = 1.0100, # gross interest rate
+                 a_lb      = 0.0000, # borrowing limit
+                 rho       = 0.9900, # AR coefficient of income process
+                 var_eps   = 0.0426, # variance of income shock
+                 n_grids_y = 17, # # of gird points for y
+                 n_grids_a = 500, # # of gird points for a 
+                 a_range   = (0, 350), # range of a interval 
+                 Omega     = 3.0000, # half of interval range (for tauchen))
+                 b0        = 0.258, # parameter in income tax function
+                 b1        = 0.768, # parameter in income tax function
+                 b2        = 0.491, # parameter in income tax function
+                 b3        = 0.144  # parameter in income tax function
+                 ):
+        
+            super().__init__(beta      = beta,
+                             sig       = sig,
+                             R         = R,
+                             a_lb      = a_lb,
+                             rho       = rho,
+                             var_eps   = var_eps,
+                             n_grids_y = n_grids_y,
+                             n_grids_a = n_grids_a,
+                             a_range   = a_range,
+                             Omega     = Omega
+                             )
+            self.b0, self.b1, self.b2, self.b3 = b0, b1, b2, b3
+            
+    def tax(self, income):
+        # Calculate income tax
+        tau = (self.b0 * (income - (income**(-self.b1) + self.b2)**(-1/self.b1))
+              + self.b3 * income)
+        return tau
+    
+    def plot_income_tax(self):
+        tau = self.tax(self.y_grid)
+        
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.set_xlabel('income')
+        ax.set_ylabel('income tax')
+        ax.plot(self.y_grid, tau, c='red')
+        fig.savefig('Q2a.png', dpi=150, bbox_inches='tight', pad_inches=0)
+        
+        
+    def muc(self, y_td, a_td, a_tmrw): # marginal utility of consumption
+        # Calculate consumption as the residual in the budget constraint
+        c_td = self.R*a_td + y_td - self.tax(y_td) - a_tmrw
+        # If consumption is negative, assign NaN        
+        if type(c_td) is np.float64:
+            if c_td <= 0:
+                c_td = np.nan
+        else:
+            c_td[c_td <= 0] = np.nan
 
+        # Compute the marginal utility of consumption
+        muc_td = c_td**(-self.sig) 
+        
+        return muc_td
+    
+    
+    def endogenous_grid_method(self,
+                                tol = 1E-5,
+                                max_iter = 1,
+                                intrpl_method = 'piecewise'
+                                ):
+
+        def backward_induction_for_a(y_td_idx, a_tmrw_idx, optimal_a_mapping):
+            y_td, a_tmrw = self.y_grid[y_td_idx], self.a_grid[a_tmrw_idx]
             
+            # Possible asset holdings day after tomorrow (matrix)
+            a_dat_idx_vec = (optimal_a_mapping)[:, a_tmrw_idx]
+            a_dat_vec = self.a_grid[a_dat_idx_vec].reshape(-1, 1)
+
+            # Possible marginal utility tomorrow
+            muc_tmrw_vec = self.muc(y_td = (self.y_grid).reshape(-1,1),
+                                    a_td = a_tmrw,
+                                    a_tmrw = a_dat_vec) 
+
+            # transition probabilities conditional on realized y today
+            trans_prob = self.trans_mat[y_td_idx, :]
             
+            # Expected (and subjectively discounted) marginal utility tomrrow 
+            RHS = np.asscalar(self.beta * self.R * trans_prob @ muc_tmrw_vec)
+  
+            # today's consumnption consistent with the above RHS
+            c_td = RHS**(-1/self.sig) 
+        
+            # calculate today's asset holding as the residual of budget constraint
+            a_td = (c_td + a_tmrw + self.tax(y_td) - y_td)/self.R
+
+            return a_td
+        
+        if intrpl_method == 'piecewise':
+            interpolate = piecewise_intrpl
+        elif intrpl_method == 'radial_basis':
+            interpolate = rbf_intrpl
+        else:
+            raise Exception('Choose a method from "piecewise" and "radial_basis".')
+        
+        # Initial guess for the policy function (Use the 45 degree line)
+        a_idx_vec = np.arange(self.n_grids_a).reshape(1, -1) # horizontal direction: asset
+        a_hat_idx_mat = np.tile(a_idx_vec, (self.n_grids_y, 1))
+        
+        
+        # Initialize while loop
+        diff, iteration = 100, 0
+        
+        tic = time.perf_counter()
+        
+        while (diff > tol) & (iteration < max_iter):
+            # Prepare a guess for the policy function
+            a_hat_idx_guess_mat = deepcopy(a_hat_idx_mat)
+
+            a_td_mat = np.array([
+                [backward_induction_for_a(i, j, a_hat_idx_guess_mat) for j in range(self.n_grids_a)]
+                for i in range(self.n_grids_y)
+                ])
+
+            for i in range(self.n_grids_y): # loop wrt grid points for y
+                # Constructing the bijection from a to a'
+                mapping_i = interpolate(x = a_td_mat[i, :],
+                                        fx = self.a_grid)
+                
+                optimal_a_tmrw = mapping_i(self.a_grid)
+                
+                optimal_a_tmrw_idx = np.array([
+                    self.get_nearest_a_idx(a_tmrw_i)
+                    for a_tmrw_i in optimal_a_tmrw
+                    ])
+
+                a_hat_idx_mat[i, :] = optimal_a_tmrw_idx
+            
+            diff = np.max(abs(self.a_grid[a_hat_idx_mat] - self.a_grid[a_hat_idx_guess_mat]))
+            iteration += 1
+            if iteration % 10 == 0:
+                print('\n Iteration {:５d}: Diff =  {:.3f}'.format(iteration, diff))
+        toc = time.perf_counter()
+        
+        # Store the result as instance attributes
+        self.elasped_time = toc - tic
+        self.policy_idx_func = a_hat_idx_mat
+        self.policy_func     = self.a_grid[a_hat_idx_mat]
