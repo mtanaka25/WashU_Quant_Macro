@@ -16,7 +16,7 @@ Create Sep 20, 2022 (Masaki Tanaka, Washington University in St. Louis)
 # =========================================================================
 # Settings
 # =========================================================================
-seed_to_use = 731
+seed_to_use = 723
 
 SCF2019_file = 'rscfp2019.dta'
 SCF2004_file = 'rscfp2004.dta'
