@@ -265,13 +265,12 @@ class IFP: # Income fluctuation problem
     def muc(self, y_td, a_td, a_tmrw): # marginal utility of consumption
         # Calculate consumption as the residual in the budget constraint
         c_td = self.R*a_td + y_td - a_tmrw
-        # If consumption is negative, assign NaN
-        
+        # If consumption is negative, assign very small c
         if type(c_td) is np.float64:
             if c_td <= 0:
-                c_td = np.nan
+                c_td = 0.000001
         else:
-            c_td[c_td <= 0] = np.nan
+            c_td[c_td <= 0] = 0.000001
 
         # Compute the marginal utility of consumption
         muc_td = c_td**(-self.sig) 
@@ -382,7 +381,7 @@ class IFP: # Income fluctuation problem
             diff = np.max(abs(self.a_grid[a_hat_idx_mat] - self.a_grid[a_hat_idx_guess_mat]))
             iteration += 1
             if iteration % 10 == 0:
-                print('\n Iteration {:５d}: Diff =  {:.3f}'.format(iteration, diff))
+                print('\n Iteration {:5d}: Diff = {:.3f}'.format(iteration, diff))
         toc = time.perf_counter()
         
         # Store the result as instance attributes
@@ -737,7 +736,7 @@ class IFP: # Income fluctuation problem
             diff = np.max(abs(self.a_grid[a_hat_idx_mat] - self.a_grid[a_hat_idx_guess_mat]))
             iteration += 1
             if iteration % 10 == 0:
-                print('\n Iteration {:５d}: Diff =  {:.3f}'.format(iteration, diff))
+                print('\n Iteration {:5d}: Diff =  {:.3f}'.format(iteration, diff))
         toc = time.perf_counter()
         
         # Store the result as instance attributes
@@ -809,12 +808,12 @@ class IFP_w_taxation(IFP):
     def muc(self, y_td, a_td, a_tmrw): # marginal utility of consumption
         # Calculate consumption as the residual in the budget constraint
         c_td = self.R*a_td + y_td - self.tax(y_td) - a_tmrw
-        # If consumption is negative, assign NaN        
+        # If consumption is negative, assign very small c       
         if type(c_td) is np.float64:
             if c_td <= 0:
-                c_td = np.nan
+                c_td = 0.000001
         else:
-            c_td[c_td <= 0] = np.nan
+            c_td[c_td <= 0] = 0.000001
 
         # Compute the marginal utility of consumption
         muc_td = c_td**(-self.sig) 
@@ -897,7 +896,7 @@ class IFP_w_taxation(IFP):
             diff = np.max(abs(self.a_grid[a_hat_idx_mat] - self.a_grid[a_hat_idx_guess_mat]))
             iteration += 1
             if iteration % 10 == 0:
-                print('\n Iteration {:５d}: Diff =  {:.3f}'.format(iteration, diff))
+                print('\n Iteration {:5d}: Diff =  {:.3f}'.format(iteration, diff))
         toc = time.perf_counter()
         
         # Store the result as instance attributes
