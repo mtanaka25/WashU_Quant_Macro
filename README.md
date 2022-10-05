@@ -11,9 +11,11 @@ In the course, we are expected to implement models with rich
 heterogeneity across agents and firms, aggregate fluctuations, and transitional dynamics.
 For the detail of the course, see the syllabus available on [Juan's personal website](https://sites.google.com/view/juanmsanchezweb).
 
+Because the PDFs of the homework assignments are copyrighted by the instructor, I will not share them. The only things I will upload here are the codes I wrote for my own solutions.
+
 
 ## Programming language
- I basically use Python, which is recommended by the lecturer, for this course's assignemnts. While I have not done so for now, however, I might occasionally use MATLAB when I think it is more suited. 
+ I basically use Python, which is recommended by the lecturer. While I have not done so for now, however, I might occasionally use MATLAB when I think it is more suited. 
 
 
 ## Requirements
