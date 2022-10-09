@@ -19,8 +19,10 @@ Create Oct 5, 2022 (Masaki Tanaka, Washington University in St. Louis)
 # =========================================================================
 # Set 1 or True to solve the question.
 # Set 0 or False to skip the question.
-do_Q1a  = 1
-do_Q1bc = 1
+do_Q1a = 1
+do_Q1b = 1
+do_Q1c = 1
+do_Q1d = 1
 
 
 # =========================================================================
@@ -47,12 +49,12 @@ if do_Q1a:
           )
     # Solve the question with kappa=0.03
     kappa003 = SimplifiedArellano2008(kappa=0.03)
-    kappa003.discretize(method='t')
+    kappa003.discretize_lnA_process(method='t')
     kappa003.solve_two_period_DP()
 
     # Solve the question with kappa=0.05
     kappa005 = SimplifiedArellano2008(kappa=0.05)
-    kappa005.discretize(method='t')
+    kappa005.discretize_lnA_process(method='t')
     kappa005.solve_two_period_DP()
     
     # Plot result
@@ -92,13 +94,35 @@ if do_Q1a:
     plt.savefig('Q1(a).png', dpi = 150, bbox_inches='tight', pad_inches=0)
     
 # =========================================================================
-# Question 1 (b, c).
+# Question 1 (b).
 # =========================================================================
-if do_Q1bc:
+if do_Q1b:
     print("\n",
           "\n **********************************",\
-          "\n        Question 1 (b, c)          ",\
+          "\n          Question 1 (b)           ",\
           "\n **********************************",\
           )
-    kappa003.solve_problem_bc(eps=3000)
+    kappa003.solve_problem_b(eps=3000)
+
+# =========================================================================
+# Question 1 (c).
+# =========================================================================
+if do_Q1c:
+    print("\n",
+          "\n **********************************",\
+          "\n          Question 1 (c)           ",\
+          "\n **********************************",\
+          )
+    kappa003.solve_problem_c()
+
+# =========================================================================
+# Question 1 (c).
+# =========================================================================
+if do_Q1d:
+    print("\n",
+          "\n **********************************",\
+          "\n          Question 1 (d)           ",\
+          "\n **********************************",\
+          )
+    kappa003.solve_problem_d()
     
