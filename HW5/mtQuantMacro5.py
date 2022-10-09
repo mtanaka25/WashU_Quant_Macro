@@ -10,6 +10,8 @@ at Washington University in St. Louis.
 Create Oct 5, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
+from math import isqrt
+from this import d
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
@@ -144,6 +146,28 @@ class PiecewiseIntrpl_MeshGrid:
             ])
         return fx_bar
     
+    def calc_partial_derivative(self, x1, x2, dim=0, dx=0.001):
+        if dim == 0:
+            def f_prime(x1_k, x2_l):
+                f_plus  = self.__call__(x1_k+dx, x2_l)
+                f_minus = self.__call__(x1_k-dx, x2_l)
+                f_prm = (f_plus - f_minus)/(2*dx)
+                return f_prm
+        else:
+            def f_prime(x1_k, x2_l):
+                f_plus  = self.__call__(x1_k, x2_l+dx)
+                f_minus = self.__call__(x1_k, x2_l-dx)
+                f_prm = (f_plus - f_minus)/(2*dx)
+                return f_prm
+        if np.isscalar(x1):
+            x1 = [x1]
+        if np.isscalar(x2):
+            x2 = [x2]
+        f_prm_vec = np.array([
+                [f_prime(x1[i], x2[j]) for j in range(len(x2))] for i in range(len(x1))
+                ])
+        return f_prm_vec
+
 
 class RBFIntrpl: # radial basis function interpolation
     """
@@ -269,12 +293,150 @@ class RBFIntrpl_MeshGrid: # radial basis function interpolation
             x1 = [x1]
         if np.isscalar(x2):
             x2 = [x2]
-        x1
         fx_bar = np.array([
             [self._fit_single_point([x1[i], x2[j]]) for j in range(len(x2))]
             for i in range(len(x1))
             ])
         return fx_bar
+    
+    def calc_partial_derivative(self, 
+                                x1, # point(s) on which the partial derivative is calculated (dim 0)
+                                x2, # point(s) on which the partial derivative is calculated (dim 1)
+                                dim = 0 # For which variable, is partical derivative calculated?
+                                ):
+        if dim == 0:
+            def f_prime(x1_k, x2_l):
+                x_new = np.array([x1_k, x2_l])
+                phi_prm_vec = np.array([
+                           -2 * self.eps * (x1_k - self.x1_grid[i])*self._rbf(x_new, np.array([self.x1_grid[i], self.x2_grid[j]]))
+                           for j in range(len(self.x2_grid)) for i in range(len(self.x1_grid)) 
+                           ])
+                f_prm = np.sum(phi_prm_vec * self.omega)
+                return f_prm
+        else:
+            def f_prime(x1_k, x2_l):
+                x_new = np.array([x1_k, x2_l])
+                phi_prm_vec = np.array([
+                           -2 * self.eps * (x2_l - self.x2_grid[j])*self._rbf(x_new, np.array([self.x1_grid[i], self.x2_grid[j]]))
+                           for j in range(len(self.x2_grid)) for i in range(len(self.x1_grid)) 
+                           ])
+                f_prm = np.sum(phi_prm_vec * self.omega)
+                return f_prm
+        if np.isscalar(x1):
+            x1 = [x1]
+        if np.isscalar(x2):
+            x2 = [x2]
+        f_prm_vec = np.array([
+                [f_prime(x1[i], x2[j]) for j in range(len(x2))] for i in range(len(x1))
+                ])
+        return f_prm_vec
+    
+# =-=-=-=-=-=-= classe for discretized AR(1) process =-=-=-=-=-=-=-=-=-=-=-=-=
+class AR1_process:
+    def __init__(self,
+                rho = 0.9000, # AR coefficient
+                sig = 0.0080, # size of shock
+                varname = 'x'  # variable name
+                ):
+        self.rho = rho
+        self.sig = sig
+        self.varname = varname
+    
+    def discretize(self, 
+                   method,
+                   N = 100, # number of grid points
+                   Omega = 3, # scale parameter for Tauchen's grid range
+                   is_write_out_result = True,
+                   is_quiet = False): 
+        if method in ['tauchen', 'Tauchen', 'T', 't']:
+            if not is_quiet:
+                print("\n Discretizing the AR(1) process by Tauchen method")
+            self._tauchen_discretize(N, Omega, is_write_out_result)
+        elif method in ['rouwenhorst', 'Rouwenhorst', 'R', 'r']:
+            if not is_quiet:
+                print("\n Discretizing the income process by Rouwenhorst method")
+            self._rouwenhorst_discretize(N, is_write_out_result)
+        else:
+            raise Exception('"method" must be "Tauchen" or "Rouwenhorst."')
+    
+    def _tauchen_discretize(self,N, Omega, is_write_out_result):
+        # nested function to compute i-j element of the transition matrix
+        def tauchen_trans_mat_ij(i, j, x_grid, h):
+            if j == 0:
+                trans_mat_ij = norm.cdf((x_grid[j] - self.rho*x_grid[i] + h/2)/self.sig)
+            elif j == (N-1):
+                trans_mat_ij = 1 - norm.cdf((x_grid[j] - self.rho*x_grid[i] - h/2)/self.sig)
+            else:
+                trans_mat_ij = ( norm.cdf((x_grid[j] - self.rho*x_grid[i] + h/2)/self.sig)
+                               - norm.cdf((x_grid[j] - self.rho*x_grid[i] - h/2)/self.sig))
+            return trans_mat_ij
+        
+        # Prepare gird points
+        sig_x  = self.sig * (1 - self.rho**2)**(-1/2)
+        x_max  = Omega * sig_x
+        x_grid = np.linspace(-x_max, x_max, N)
+        
+        # Calculate the step size
+        h = (2 * x_max)/(N - 1)
+        
+        # Construct the transition matrix
+        trans_mat = [ 
+            [tauchen_trans_mat_ij(i, j, x_grid, h) for j in range(N)]
+            for i in range(N)
+            ]
+            
+        if is_write_out_result:
+            np.savetxt('Tauchen_{0}_grid.csv'.format(self.varname), x_grid, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+            np.savetxt('Tauchen_trans_mat.csv', trans_mat, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+        
+        # Store the result as the instance's attributes
+        self.__dict__['{0}_grid'.format(self.varname)] = x_grid
+        self.trans_mat, self.step_size = np.array(trans_mat), h
+    
+    def _rouwenhorst_discretize(self, N, is_write_out_result):
+        # Prepare gird points
+        sig_x  = self.sig * (1 - self.rho**2)**(-1/2)
+        x_max  = sig_x * np.sqrt(N - 1)
+        x_grid = np.linspace(-x_max, x_max, N)
+        
+        # Calculate the step size
+        h = (2 * x_max)/(N-1)
+        
+        # parameter necessary for Rouwenhorst recursion
+        pi = 0.5 * (1 + self.rho)
+        
+        # N = 2
+        Pi_N = np.array([[pi, 1 - pi],
+                         [1 - pi, pi]])
+        
+        for n in range(3, N+1, 1):
+            Pi_pre = deepcopy(Pi_N)
+            Pi_N1, Pi_N2, Pi_N3, Pi_N4 = \
+                np.zeros((n,n)), np.zeros((n,n)), np.zeros((n,n)), np.zeros((n,n))
+            
+            Pi_N1[:n-1, :n-1] = Pi_N2[:n-1, 1:n] = \
+                Pi_N3[1:n, 1:n] = Pi_N4[1:n, :n-1] = Pi_pre
+            
+            Pi_N = (pi * Pi_N1
+                    + (1 - pi) * Pi_N2
+                    + pi * Pi_N3
+                    + (1 - pi) * Pi_N4
+            )
+            # Divide all but the top and bottom rows by two so that the 
+            # elements in each row sum to one (Kopecky & Suen[2010, RED]).
+            Pi_N[1:-1, :] *= 0.5
+            
+        if is_write_out_result:
+            np.savetxt('Rouwenhorst_{0}_grid.csv'.format(self.varname), x_grid, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+            np.savetxt('Rouwenhorst_trans_mat.csv', Pi_N, delimiter=' & ', 
+                       fmt='%2.3f', newline=' \\\\\n')
+            
+        # Store the result as the instance's attributes
+        self.__dict__['{0}_gird'.format(self.varname)] = x_grid
+        self.trans_mat, self.step_size = Pi_N, h
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=- helpful functions =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 def get_nearest_idx(x, array):
@@ -297,10 +459,11 @@ class SimplifiedArellano2008:
                  kappa     = 0.03, 
                  Omega     = 3.0000, # half of interval range (for tauchen)
                  ):
-        # calculate sigma_y based on rho and var_eps
-        var_eps = sig_eps ** 2
-        sig_lnA = sig_eps * (1 - rho**2)**(-1/2)
-        var_lnA = sig_lnA**2
+        
+        # Create an instance for the productivity process
+        lnA_AR1 = AR1_process(rho = rho,
+                              sig = sig_eps,
+                              varname = 'lnA')
         
         b_grid = np.linspace(b_range[0], b_range[1], N_b)
         
@@ -310,116 +473,28 @@ class SimplifiedArellano2008:
         self.theta     = theta
         self.r         = r
         self.phi       = phi
-        self.rho       = rho
-        self.var_eps   = var_eps
-        self.sig_eps   = sig_eps
-        self.var_lnA   = var_lnA
-        self.sig_lnA   = sig_lnA
         self.N_A       = N_A
         self.N_b       = N_b
         self.b_grid    = b_grid
         self.kappa     = kappa    
         self.Omega     = Omega
+        self.lnA_AR1   = lnA_AR1
     
     
-    def discretize(self, method,
-                is_write_out_result = True,
-                is_quiet = False): 
-        if method in ['tauchen', 'Tauchen', 'T', 't']:
-            if not is_quiet:
-                print("\n Discretizing the income process by Tauchen method")
-            self._tauchen_discretize(is_write_out_result)
+    def discretize_lnA_process(self, 
+                               method,
+                               is_write_out_result = True,
+                               is_quiet = False): 
         
-        elif method in ['rouwenhorst', 'Rouwenhorst', 'R', 'r']:
-            if not is_quiet:
-                print("\n Discretizing the income process by Rouwenhorst method")
-            self._rouwenhorst_discretize(is_write_out_result)
-            
-        else:
-            raise Exception('"method" input must be "Tauchen" or "Rouwenhorst."')
-    
-    
-    def _tauchen_discretize(self, is_write_out_result):
-        # nested function to compute i-j element of the transition matrix
-        def tauchen_trans_mat_ij(i, j, lnA_grid, h):
-            if j == 0:
-                trans_mat_ij = norm.cdf((lnA_grid[j] - self.rho*lnA_grid[i] + h/2)/self.sig_eps)
-            elif j == (self.N_A-1):
-                trans_mat_ij = 1 - norm.cdf((lnA_grid[j] - self.rho*lnA_grid[i] - h/2)/self.sig_eps)
-            else:
-                trans_mat_ij = ( norm.cdf((lnA_grid[j] - self.rho*lnA_grid[i] + h/2)/self.sig_eps)
-                               - norm.cdf((lnA_grid[j] - self.rho*lnA_grid[i] - h/2)/self.sig_eps))
-            return trans_mat_ij
+        self.lnA_AR1.discretize(method = method,
+                                N = self.N_A,
+                                Omega = self.Omega,
+                                is_write_out_result = is_write_out_result,
+                                is_quiet = is_quiet)
         
-        # Prepare gird points
-        lnA_max  = self.Omega * self.sig_lnA
-        lnA_grid = np.linspace(-lnA_max, lnA_max, self.N_A)
-        A_grid   = np.exp(lnA_grid)
-        
-        # Calculate the step size
-        h = (2 * lnA_max)/(self.N_A-1)
-        
-        # Construct the transition matrix
-        trans_mat = [ 
-            [tauchen_trans_mat_ij(i, j, lnA_grid, h) 
-             for j in range(self.N_A)
-            ]
-            for i in range(self.N_A)
-            ]
-            
-        if is_write_out_result:
-            np.savetxt('Tauchen_A_grid.csv', A_grid, delimiter=' & ', 
-                       fmt='%2.3f', newline=' \\\\\n')
-            np.savetxt('Tauchen_trans_mat.csv', trans_mat, delimiter=' & ', 
-                       fmt='%2.3f', newline=' \\\\\n')
-        
-        self.lnA_grid, self.A_grid, self.trans_mat, self.step_size =\
-            lnA_grid, A_grid, np.array(trans_mat), h
-    
-    
-    def _rouwenhorst_discretize(self, is_write_out_result):
-        # Prepare gird points
-        lnA_max  = self.sig_lnA * np.sqrt(self.N_A - 1)
-        lnA_grid = np.linspace(-lnA_max, lnA_max, self.N_A)
-        A_grid   = np.exp(lnA_grid)
-        
-        # Calculate the step size
-        h = (2 * lnA_max)/(self.N_A-1)
-        
-        # parameter necessary for Rouwenhorst recursion
-        pi = 0.5 * (1 + self.rho)
-        
-        # N = 2
-        Pi_N = np.array([[pi, 1 - pi],
-                         [1 - pi, pi]])
-        
-        for n in range(3, self.N_A+1, 1):
-            Pi_pre = deepcopy(Pi_N)
-            Pi_N1, Pi_N2, Pi_N3, Pi_N4 = \
-                np.zeros((n,n)), np.zeros((n,n)), np.zeros((n,n)), np.zeros((n,n))
-            
-            Pi_N1[:n-1, :n-1] = Pi_N2[:n-1, 1:n] = \
-                Pi_N3[1:n, 1:n] = Pi_N4[1:n, :n-1] = Pi_pre
-            
-            Pi_N = (pi * Pi_N1
-                    + (1 - pi) * Pi_N2
-                    + pi * Pi_N3
-                    + (1 - pi) * Pi_N4
-            )
-            # Divide all but the top and bottom rows by two so that the 
-            # elements in each row sum to one (Kopecky & Suen[2010, RED]).
-            Pi_N[1:-1, :] *= 0.5
-            
-        if is_write_out_result:
-            np.savetxt('Rouwenhorst_A_grid.csv', A_grid, delimiter=' & ', 
-                       fmt='%2.3f', newline=' \\\\\n')
-            np.savetxt('Rouwenhorst_trans_mat.csv', Pi_N, delimiter=' & ', 
-                       fmt='%2.3f', newline=' \\\\\n')
-        
-        self.lnA_grid, self.A_grid, self.trans_mat, self.step_size \
-            = lnA_grid, A_grid, Pi_N, h
-    
-    
+        A_grid = np.exp(self.lnA_AR1.lnA_grid)
+        self.trans_mat = deepcopy(self.lnA_AR1.trans_mat)
+        self.A_grid = A_grid
     
     def VD(self, A_idx, V_tmrw): # value of default today
         # today's productivity level
@@ -526,52 +601,54 @@ class SimplifiedArellano2008:
             VD_T, VG_T, V_T, D_T, q_Tm1
             
 
-    def interpolate_with_RBF(self, V_mat, q_mat, N_finer=1000, eps=3000):
+
+        
+    def solve_problem_b(self, 
+                        eps=3000,
+                        N_finer = 1000,
+                        A_fix = 19,
+                        b_fix = 29):
+        
+        # prepare the finer grids
         A_finer_grid = np.linspace(self.A_grid[0], self.A_grid[-1], N_finer)
         b_finer_grid = np.linspace(self.b_grid[0], self.b_grid[-1], N_finer)
         
+        
+        # interpolate by RBF interpolation
         V_intrpl = RBFIntrpl_MeshGrid(x1_grid = self.A_grid,
                                       x2_grid = self.b_grid,
-                                      fx = V_mat,
+                                      fx = self.V_T,
                                       eps = eps)
         q_intrpl = RBFIntrpl_MeshGrid(x1_grid = self.A_grid,
                                       x2_grid = self.b_grid,
-                                      fx = q_mat,
+                                      fx = self.q_Tm1,
                                       eps = eps)
         
+        # store the result as instances
         self.b_finer_grid = b_finer_grid
         self.A_finer_grid = A_finer_grid
-        self.V_intrpl = V_intrpl
-        self.q_intrpl = q_intrpl
+        self.Q1b_V_intrpl = V_intrpl
+        self.Q1b_q_intrpl = q_intrpl
         
-    def solve_problem_bc(self, 
-                         eps=3000,
-                         N_finer = 1000,
-                         A_fix = 19,
-                         b_fix = 29):
-        self.interpolate_with_RBF(V_mat = self.V_T, 
-                                  q_mat = self.q_Tm1,
-                                  N_finer = N_finer,
-                                  eps = eps)
-        
-        A_finer_idx = get_nearest_idx(self.A_grid[A_fix], self.A_finer_grid)
-        b_finer_idx = get_nearest_idx(self.b_grid[b_fix], self.b_finer_grid)
+        # Find index whose corresponding value is close to A_20 (b_30)
+        A_finer_idx = get_nearest_idx(self.A_grid[A_fix], A_finer_grid)
+        b_finer_idx = get_nearest_idx(self.b_grid[b_fix], b_finer_grid)
         
         # Calculate the interpolated values
-        V_of_b_given_A = (self.V_intrpl(x1 = self.A_finer_grid[A_finer_idx],
-                                        x2 = self.b_finer_grid)).flatten()
-        V_of_A_given_b = (self.V_intrpl(x1 = self.A_finer_grid,
-                                        x2 = self.b_finer_grid[b_finer_idx])).flatten()
-        q_of_b_given_A = (self.q_intrpl(x1 = self.A_finer_grid[A_finer_idx],
-                                        x2 = self.b_finer_grid)).flatten()
-        q_of_A_given_b = (self.q_intrpl(x1 = self.A_finer_grid,
-                                        x2 = self.b_finer_grid[b_finer_idx])).flatten()
+        V_of_b_given_A = (V_intrpl(x1 = A_finer_grid[A_finer_idx],
+                                   x2 = b_finer_grid)).flatten()
+        V_of_A_given_b = (V_intrpl(x1 = A_finer_grid,
+                                   x2 = b_finer_grid[b_finer_idx])).flatten()
+        q_of_b_given_A = (q_intrpl(x1 = A_finer_grid[A_finer_idx],
+                                   x2 = b_finer_grid)).flatten()
+        q_of_A_given_b = (q_intrpl(x1 = A_finer_grid,
+                                   x2 = b_finer_grid[b_finer_idx])).flatten()
         
         # Plot result
         fig, ax = plt.subplots(2, 2, figsize=(12, 16))
         ax[0, 0].plot(self.b_grid, self.V_T[A_fix, :],
                   c ='red', lw = 0, marker = "o", label='Original')
-        ax[0, 0].plot(self.b_finer_grid, V_of_b_given_A ,
+        ax[0, 0].plot(b_finer_grid, V_of_b_given_A ,
                       c ='orange', label='Interpolated')
         ax[0, 0].set_xlabel('b')
         ax[0, 0].set_title('$V_T(b | A)$')
@@ -580,7 +657,7 @@ class SimplifiedArellano2008:
 
         ax[0, 1].plot(self.A_grid, self.V_T[:, b_fix],
                       c ='red', lw = 0, marker = "o", label='Original')
-        ax[0, 1].plot(self.A_finer_grid, V_of_A_given_b,
+        ax[0, 1].plot(A_finer_grid, V_of_A_given_b,
                       c ='orange', label='Interpolated')
         ax[0, 1].set_xlabel('A')
         ax[0, 1].set_title('$V_T(A | b)$')
@@ -589,7 +666,7 @@ class SimplifiedArellano2008:
 
         ax[1, 0].plot(self.b_grid, self.q_Tm1[A_fix, :],
                       c ='red', lw = 0, marker = "o", label='Original')
-        ax[1, 0].plot(self.b_finer_grid, q_of_b_given_A ,
+        ax[1, 0].plot(b_finer_grid, q_of_b_given_A ,
                       c ='orange', label='Interpolated')
         ax[1, 0].set_xlabel("$b'$")
         ax[1, 0].set_title('$q_{T-1}$' + "$(b' | A)$")
@@ -598,7 +675,7 @@ class SimplifiedArellano2008:
 
         ax[1, 1].plot(self.A_grid, self.q_Tm1[:, 29],
                       c ='red', lw = 0, marker = "o", label='Original')
-        ax[1, 1].plot(self.A_finer_grid, q_of_A_given_b,
+        ax[1, 1].plot(A_finer_grid, q_of_A_given_b,
                       c ='orange', label='Interpolated')
         ax[1, 1].set_xlabel("$A$")
         ax[1, 1].set_title('$q_{T-1}$' + "$(A | b')$")
@@ -607,3 +684,139 @@ class SimplifiedArellano2008:
         
         plt.savefig('Q1(b).png', dpi = 150, bbox_inches='tight', pad_inches=0)
         
+
+    def solve_problem_c(self, 
+                        N_finer = 1000,
+                        A_fix = 19,
+                        b_fix = 29):
+        b_finer_grid = self.b_finer_grid
+        A_finer_grid = self.A_finer_grid
+        
+        # interpolate by RBF interpolation
+        V_intrpl = PiecewiseIntrpl_MeshGrid(x1_grid = self.A_grid,
+                                            x2_grid = self.b_grid,
+                                            fx = self.V_T)
+        q_intrpl = PiecewiseIntrpl_MeshGrid(x1_grid = self.A_grid,
+                                            x2_grid = self.b_grid,
+                                            fx = self.q_Tm1)
+        
+        # store the result as instances
+        self.Q1c_V_intrpl = V_intrpl
+        self.Q1c_q_intrpl = q_intrpl
+        
+        # Find index whose corresponding value is close to A_20 (b_30)
+        A_finer_idx = get_nearest_idx(self.A_grid[A_fix], A_finer_grid)
+        b_finer_idx = get_nearest_idx(self.b_grid[b_fix], b_finer_grid)
+        
+        # Calculate the interpolated values
+        V_of_b_given_A = (V_intrpl(x1 = A_finer_grid[A_finer_idx],
+                                   x2 = b_finer_grid)).flatten()
+        V_of_A_given_b = (V_intrpl(x1 = A_finer_grid,
+                                   x2 = b_finer_grid[b_finer_idx])).flatten()
+        q_of_b_given_A = (q_intrpl(x1 = A_finer_grid[A_finer_idx],
+                                   x2 = b_finer_grid)).flatten()
+        q_of_A_given_b = (q_intrpl(x1 = A_finer_grid,
+                                   x2 = b_finer_grid[b_finer_idx])).flatten()
+        
+        # Plot result
+        fig, ax = plt.subplots(2, 2, figsize=(12, 16))
+        ax[0, 0].plot(self.b_grid, self.V_T[A_fix, :],
+                  c ='red', lw = 0, marker = "o", label='Original')
+        ax[0, 0].plot(b_finer_grid, V_of_b_given_A ,
+                      c ='orange', label='Interpolated')
+        ax[0, 0].set_xlabel('b')
+        ax[0, 0].set_title('$V_T(b | A)$')
+        ax[0, 0].set_ylim([-3.9, -3.3])
+        ax[0, 0].legend(frameon=False)
+
+        ax[0, 1].plot(self.A_grid, self.V_T[:, b_fix],
+                      c ='red', lw = 0, marker = "o", label='Original')
+        ax[0, 1].plot(A_finer_grid, V_of_A_given_b,
+                      c ='orange', label='Interpolated')
+        ax[0, 1].set_xlabel('A')
+        ax[0, 1].set_title('$V_T(A | b)$')
+        ax[0, 1].set_ylim([-3.9, -3.3])
+        ax[0, 1].legend(frameon=False)
+
+        ax[1, 0].plot(self.b_grid, self.q_Tm1[A_fix, :],
+                      c ='red', lw = 0, marker = "o", label='Original')
+        ax[1, 0].plot(b_finer_grid, q_of_b_given_A ,
+                      c ='orange', label='Interpolated')
+        ax[1, 0].set_xlabel("$b'$")
+        ax[1, 0].set_title('$q_{T-1}$' + "$(b' | A)$")
+        ax[1, 0].set_ylim([-0.05, 1.05])
+        ax[1, 0].legend(frameon=False)
+
+        ax[1, 1].plot(self.A_grid, self.q_Tm1[:, 29],
+                      c ='red', lw = 0, marker = "o", label='Original')
+        ax[1, 1].plot(A_finer_grid, q_of_A_given_b,
+                      c ='orange', label='Interpolated')
+        ax[1, 1].set_xlabel("$A$")
+        ax[1, 1].set_title('$q_{T-1}$' + "$(A | b')$")
+        ax[1, 1].set_ylim([-0.05, 1.05])
+        ax[1, 1].legend(frameon=False)
+        
+        plt.savefig('Q1(c).png', dpi = 150, bbox_inches='tight', pad_inches=0)
+
+    def solve_problem_d(self,
+                        A_fix = 19,
+                        b_fix = 29):
+        # Find index whose corresponding value is close to A_20 (b_30)
+        b_finer_grid = self.b_finer_grid
+        A_finer_grid = self.A_finer_grid
+        A_finer_idx = get_nearest_idx(self.A_grid[A_fix], A_finer_grid)
+        b_finer_idx = get_nearest_idx(self.b_grid[b_fix], b_finer_grid)
+        A20 = A_finer_grid[A_finer_idx]
+        b30 = b_finer_grid[b_finer_idx] 
+                
+        # Partial derivatives: RBF
+        V_prime_of_b_RBF = self.Q1b_V_intrpl.calc_partial_derivative(A20, self.b_finer_grid, dim=1)
+        V_prime_of_A_RBF = self.Q1b_V_intrpl.calc_partial_derivative(self.A_finer_grid, b30, dim=0)
+        q_prime_of_b_RBF = self.Q1b_q_intrpl.calc_partial_derivative(A20, self.b_finer_grid, dim=1)
+        q_prime_of_A_RBF = self.Q1b_q_intrpl.calc_partial_derivative(self.A_finer_grid, b30, dim=0)
+
+        # Partial derivatives: Piecewise linear
+        V_prime_of_b_PWL = self.Q1c_V_intrpl.calc_partial_derivative(A20, self.b_finer_grid, dim=1)
+        V_prime_of_A_PWL = self.Q1c_V_intrpl.calc_partial_derivative(self.A_finer_grid, b30, dim=0)
+        q_prime_of_b_PWL = self.Q1c_q_intrpl.calc_partial_derivative(A20, self.b_finer_grid, dim=1)
+        q_prime_of_A_PWL = self.Q1c_q_intrpl.calc_partial_derivative(self.A_finer_grid, b30, dim=0)
+        
+        # Plot result
+        fig, ax = plt.subplots(2, 2, figsize=(12, 16))
+        ax[0, 0].plot(b_finer_grid, V_prime_of_b_RBF.flatten(),
+                      c ='blue', ls='dashed', label='Radial basis function')
+        ax[0, 0].plot(b_finer_grid, V_prime_of_b_PWL.flatten(),
+                      c ='red', label='Piecewise linear')
+        ax[0, 0].set_xlabel('b')
+        ax[0, 0].set_title("$V'_T(b | A)$")
+        ax[0, 0].set_ylim([-16, 20])
+        ax[0, 0].legend(frameon=False)
+
+        ax[0, 1].plot(A_finer_grid, V_prime_of_A_RBF.flatten(),
+                      c ='blue', ls='dashed', label='Radial basis function')
+        ax[0, 1].plot(A_finer_grid, V_prime_of_A_PWL.flatten(),
+                      c ='red', label='Piecewise linear')
+        ax[0, 1].set_xlabel('A')
+        ax[0, 1].set_title("$V'_T(A | b)$")
+        ax[0, 1].set_ylim([-16, 20])
+        ax[0, 1].legend(frameon=False)
+
+        ax[1, 0].plot(b_finer_grid, q_prime_of_b_RBF.flatten(),
+                      c ='blue', ls='dashed', label='Radial basis function')
+        ax[1, 0].plot(b_finer_grid, q_prime_of_b_PWL.flatten(),
+                      c ='red', label='Piecewise linear')
+        ax[1, 0].set_xlabel("$b'$")
+        ax[1, 0].set_title("$q'_{T-1}(b' | A)$")
+        ax[1, 0].set_ylim([-5, 36])
+        ax[1, 0].legend(frameon=False)
+
+        ax[1, 1].plot(A_finer_grid, q_prime_of_A_RBF.flatten(),
+                      c ='blue', ls='dashed', label='Radial basis function')
+        ax[1, 1].plot(A_finer_grid, q_prime_of_A_PWL.flatten(),
+                      c ='red', label='Piecewise linear')
+        ax[1, 1].set_xlabel("$A$")
+        ax[1, 1].set_title("$q'_{T-1}(A | b')$")
+        ax[1, 1].set_ylim([-5, 36])
+        ax[1, 1].legend(frameon=False)     
+        
+        plt.savefig('Q1(d).png', dpi = 150, bbox_inches='tight', pad_inches=0)
