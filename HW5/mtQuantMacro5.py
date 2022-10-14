@@ -10,7 +10,6 @@ at Washington University in St. Louis.
 Create Oct 5, 2022 (Masaki Tanaka, Washington University in St. Louis)
 
 """
-from re import I
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -1167,7 +1166,7 @@ class SimplifiedArellano2008:
         
         # i) Ordinary value iteration with discretization
         print("Solving for b'_T by ordinary value iteration with discretization...\n")
-        V_Tm1_i, b_T_i, _, q_Tm2_i, _, _, elapsed_time_i = \
+        V_Tm1_i, b_T_i, D_Tm1_i, q_Tm2_i, _, _, elapsed_time_i = \
             self.value_func_iter(V_init = self.V_T,
                                  q_init = self.q_Tm1,
                                  max_iter = 1)
@@ -1176,7 +1175,7 @@ class SimplifiedArellano2008:
         
         # ii) Value iteration with interpolation
         print("Solving for b'_T by value iteration with interpolation...\n")
-        V_Tm1_ii, b_T_ii, _, q_Tm2_ii, _, _, elapsed_time_ii = \
+        V_Tm1_ii, b_T_ii, D_Tm1_ii, q_Tm2_ii, _, _, elapsed_time_ii = \
             self.value_func_iter_w_intrpl(V_init = self.V_T,
                                           q_init = self.q_Tm1,
                                           max_iter = 1)
@@ -1185,7 +1184,7 @@ class SimplifiedArellano2008:
         
         # iii) Euler-equation based policy iteration
         print("Solving for b'_T by Eular equation iteration with interpolation...\n")
-        V_Tm1_iii, b_T_iii, _, q_Tm2_iii, _, _, elapsed_time_iii = \
+        V_Tm1_iii, b_T_iii, D_Tm1_iii, q_Tm2_iii, _, _, elapsed_time_iii = \
             self.Euler_eq_iter_w_intrpl(V_init = self.V_T,
                                         q_init = self.q_Tm1,
                                         max_iter = 1)
@@ -1221,24 +1220,26 @@ class SimplifiedArellano2008:
         
         # Graphics for (f)
         fig, ax2 = plt.subplots(2, 1, figsize=(12, 16))    
-        ax2[0].plot(self.b_grid, V_Tm1_iii[A_fix, :].flatten(),
+        ax2[0].plot(self.b_grid, D_Tm1_iii[A_fix, :].flatten(),
                       c = 'blue', ls = 'dashed', lw = 3, label = 'Method (iii)')
-        ax2[0].plot(self.b_grid, V_Tm1_ii[A_fix, :].flatten(),
+        ax2[0].plot(self.b_grid, D_Tm1_ii[A_fix, :].flatten(),
                       c = 'gray', lw = 2, label = 'Method (ii)')
-        ax2[0].plot(self.b_grid, V_Tm1_i[A_fix, :].flatten(),
+        ax2[0].plot(self.b_grid, D_Tm1_i[A_fix, :].flatten(),
                       c = 'red', label = 'Method (i)')
         ax2[0].set_xlabel("$b_{T-1}$")
-        ax2[0].set_title('$V_{T-1}$' + "$(b_{T-1} | A = A_{20})$")
+        ax2[0].set_title('$D_{T-1}$' + "$(b_{T-1} | A = A_{20})$")
+        ax2[0].set_ylim([-0.05, 1.05])
         ax2[0].legend(frameon=False)
         
-        ax2[1].plot(self.A_grid, V_Tm1_iii[:, b_fix].flatten(),
+        ax2[1].plot(self.A_grid, D_Tm1_iii[:, b_fix].flatten(),
                       c = 'blue', ls = 'dashed', lw = 3, label = 'Method (iii)')
-        ax2[1].plot(self.A_grid, V_Tm1_ii[:, b_fix].flatten(),
+        ax2[1].plot(self.A_grid, D_Tm1_ii[:, b_fix].flatten(),
                       c = 'gray', lw = 2, label = 'Method (ii)')
-        ax2[1].plot(self.A_grid, V_Tm1_i[:, b_fix].flatten(),
+        ax2[1].plot(self.A_grid, D_Tm1_i[:, b_fix].flatten(),
                       c = 'red', label = 'Method (i)')
         ax2[1].set_xlabel("$A_{T-1}$")
-        ax2[1].set_title('$V_{T-1}$' + "$(A_{T-1}| b = b_{30})$")
+        ax2[1].set_title('$D_{T-1}$' + "$(A_{T-1}| b = b_{30})$")
+        ax2[1].set_ylim([-0.05, 1.05])
         ax2[1].legend(frameon=False)
         
         plt.savefig('Q1(f).png', dpi = 150, bbox_inches='tight', pad_inches=0)
