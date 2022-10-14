@@ -130,7 +130,7 @@ print("\n",
       "\n             Question 2            ",\
       "\n **********************************",\
       )
-kappa003.solve_problem_2(method=['method1'])
+kappa003.solve_problem_2(method=['method1', 'method2'])
 
 print("\n",
       "\n **********************************",\

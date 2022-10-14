@@ -606,8 +606,8 @@ class SimplifiedArellano2008:
         if is_wo_shock:
             E_V = np.max([V_G, V_D], axis = 0)
         else:
-            E_V = self.kappa * np.log(
-                np.exp(V_G/self.kappa) + np.exp(V_D/self.kappa)
+            E_V = V_D + self.kappa * np.log(
+                np.exp((V_G - V_D)/self.kappa) + 1
                 )
         return E_V 
     
@@ -616,9 +616,8 @@ class SimplifiedArellano2008:
         if is_wo_shock:
             D_star = np.argmax([V_G, V_D], axis = 0)
         else:
-            expVD = np.exp(V_D/self.kappa)
-            expVG = np.exp(V_G/self.kappa)
-            D_star = expVD / (expVD + expVG)
+            expVG_VD = np.exp((V_G - V_D)/self.kappa)
+            D_star = 1 / (1 + expVG_VD)
         return D_star
     
     
@@ -685,7 +684,7 @@ class SimplifiedArellano2008:
         toc = time.process_time()
         elapsed_time = toc - tic
         
-        return V_t, b_tp1, D_t, q_tm1, VD_t, VG_t, elapsed_time 
+        return V_t, b_tp1, D_t, q_tm1, VD_t, VG_t, elapsed_time, iteration
     
     
     def value_func_iter_w_intrpl(self,
@@ -771,7 +770,7 @@ class SimplifiedArellano2008:
         toc = time.process_time()
         elapsed_time = toc - tic
         
-        return V_t, b_tp1, D_t, q_tm1, VD_t, VG_t, elapsed_time 
+        return V_t, b_tp1, D_t, q_tm1, VD_t, VG_t, elapsed_time, iteration
     
     
     def Euler_eq_iter_w_intrpl(self,
@@ -863,7 +862,7 @@ class SimplifiedArellano2008:
         toc = time.process_time()
         elapsed_time = toc - tic
         
-        return V_t, b_tp1, D_t, q_tm1, VD_t, VG_t, elapsed_time
+        return V_t, b_tp1, D_t, q_tm1, VD_t, VG_t, elapsed_time, iteration
     
     def argmin_resid_of_Euler_eq(self, A_idx, b_idx, q, dVdb, dqdb, is_interpolated=False):
         # today's productivity level and borrowing
@@ -899,9 +898,9 @@ class SimplifiedArellano2008:
         V_terminal = np.zeros((self.N_A, self.N_b))
         q_T = np.zeros((self.N_A, self.N_b))
         
-        V_T, _, _, q_Tm1, _, _, elapsed_time = self.value_func_iter(V_init = V_terminal,
-                                                                                q_init = q_T,
-                                                                                max_iter = 1)
+        V_T, _, _, q_Tm1, _, _, elapsed_time, _ = self.value_func_iter(V_init = V_terminal,
+                                                                       q_init = q_T,
+                                                                       max_iter = 1)
         
         print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time)))
         
@@ -1166,7 +1165,7 @@ class SimplifiedArellano2008:
         
         # i) Ordinary value iteration with discretization
         print("Solving for b'_T by ordinary value iteration with discretization...\n")
-        V_Tm1_i, b_T_i, D_Tm1_i, q_Tm2_i, _, _, elapsed_time_i = \
+        V_Tm1_i, b_T_i, D_Tm1_i, q_Tm2_i, _, _, elapsed_time_i, _ = \
             self.value_func_iter(V_init = self.V_T,
                                  q_init = self.q_Tm1,
                                  max_iter = 1)
@@ -1175,7 +1174,7 @@ class SimplifiedArellano2008:
         
         # ii) Value iteration with interpolation
         print("Solving for b'_T by value iteration with interpolation...\n")
-        V_Tm1_ii, b_T_ii, D_Tm1_ii, q_Tm2_ii, _, _, elapsed_time_ii = \
+        V_Tm1_ii, b_T_ii, D_Tm1_ii, q_Tm2_ii, _, _, elapsed_time_ii, _ = \
             self.value_func_iter_w_intrpl(V_init = self.V_T,
                                           q_init = self.q_Tm1,
                                           max_iter = 1)
@@ -1184,7 +1183,7 @@ class SimplifiedArellano2008:
         
         # iii) Euler-equation based policy iteration
         print("Solving for b'_T by Eular equation iteration with interpolation...\n")
-        V_Tm1_iii, b_T_iii, D_Tm1_iii, q_Tm2_iii, _, _, elapsed_time_iii = \
+        V_Tm1_iii, b_T_iii, D_Tm1_iii, q_Tm2_iii, _, _, elapsed_time_iii, _= \
             self.Euler_eq_iter_w_intrpl(V_init = self.V_T,
                                         q_init = self.q_Tm1,
                                         max_iter = 1)
@@ -1254,12 +1253,13 @@ class SimplifiedArellano2008:
         if 'method1' in method:
             # i) Ordinary value iteration with discretization
             print("Solving the model by ordinary value iteration with discretization...\n")
-            _, b_i, _, q_i, _, _, elapsed_time_i = \
+            _, b_i, _, q_i, _, _, elapsed_time_i, iteration_i = \
                 self.value_func_iter(V_init = self.V_Tm1_i,
                                      q_init = self.q_Tm2_i,
                                      max_iter = 10000
                                      )
-            print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time_i)))
+            print('elapsed time = {0}'.format(timedelta(seconds = elapsed_time_i)))
+            print('# of iteration = {0}\n'.format(iteration_i))    
             
             # Graphics
             fig1, ax1 = plt.subplots(3, 1, figsize=(12, 16))
@@ -1300,11 +1300,12 @@ class SimplifiedArellano2008:
         if 'method2' in method:
             # ii) Value iteration with interpolation
             print("Solving the model by value iteration with interpolation...\n")
-            _, b_ii, _, q_ii, _, _, elapsed_time_ii = \
+            _, b_ii, _, q_ii, _, _, elapsed_time_ii, iteration_ii = \
                 self.value_func_iter_w_intrpl(V_init = self.V_Tm1_ii,
                                               q_init = self.q_Tm2_ii,
                                               max_iter = 10000)
-            print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time_ii)))
+            print('elapsed time = {0}'.format(timedelta(seconds = elapsed_time_ii)))
+            print('# of iteration = {0}\n'.format(iteration_ii))    
             
             # Graphics
             fig2, ax2 = plt.subplots(3, 1, figsize=(12, 16))
@@ -1345,11 +1346,12 @@ class SimplifiedArellano2008:
         if 'method3' in method:
             # iii) Euler-equation based policy iteration
             print("Solving the model by Eular equation iteration with interpolation...\n")
-            _, b_iii, _, q_iii, _, _, elapsed_time_iii = \
+            _, b_iii, _, q_iii, _, _, elapsed_time_iii, iteration_iii = \
                 self.Euler_eq_iter_w_intrpl(V_init = self.V_Tm1_iii,
                                             q_init = self.q_Tm2_iii,
                                             max_iter = 10000)
-            print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time_iii)))
+            print('elapsed time = {0}'.format(timedelta(seconds = elapsed_time_iii)))
+            print('# of iteration = {0}\n'.format(iteration_iii))    
             
             # Graphics
             fig3, ax3 = plt.subplots(3, 1, figsize=(12, 16))
@@ -1390,18 +1392,17 @@ class SimplifiedArellano2008:
     def solve_problem_2_wo_shock(self,
                         method = ['method1', 'method2', 'method3'],
                         A_fix = (2, 12, 22),
-                        b_fix = (9, 29, 49),
-                        is_wo_shock = True
+                        b_fix = (9, 29, 49)
                         ):
         
         if 'method1' in method:
             # i) Ordinary value iteration with discretization
             print("Solving the model by ordinary value iteration with discretization...\n")
-            _, b_i, _, q_i, _, _, elapsed_time_i = \
+            _, b_i, _, q_i, _, _, elapsed_time_i, iteration_i = \
                 self.value_func_iter(max_iter = 10000,
                                      is_wo_shock=True)
-            print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time_i)))
-            
+            print('elapsed time = {0}'.format(timedelta(seconds = elapsed_time_i)))
+            print('# of iteration = {0}\n'.format(iteration_i))            
             # Graphics
             fig1, ax1 = plt.subplots(3, 1, figsize=(12, 16))
             ax1[0].plot(self.b_grid,self.b_grid,
@@ -1441,11 +1442,12 @@ class SimplifiedArellano2008:
         if 'method2' in method:
             # ii) Value iteration with interpolation
             print("Solving the model by value iteration with interpolation...\n")
-            _, b_ii, _, q_ii, _, _, elapsed_time_ii = \
+            _, b_ii, _, q_ii, _, _, elapsed_time_ii, iteration_ii = \
                 self.value_func_iter_w_intrpl(max_iter = 10000,
                                               is_wo_shock = True)
-            print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time_ii)))
-            
+            print('elapsed time = {0}'.format(timedelta(seconds = elapsed_time_ii)))
+            print('# of iteration = {0}\n'.format(iteration_ii))
+                        
             # Graphics
             fig2, ax2 = plt.subplots(3, 1, figsize=(12, 16))
             ax2[0].plot(self.b_grid,self.b_grid,
@@ -1485,11 +1487,12 @@ class SimplifiedArellano2008:
         if 'method3' in method:
             # iii) Euler-equation based policy iteration
             print("Solving the model by Eular equation iteration with interpolation...\n")
-            _, b_iii, _, q_iii, _, _, elapsed_time_iii = \
+            _, b_iii, _, q_iii, _, _, elapsed_time_iii, iteration_iii = \
                 self.Euler_eq_iter_w_intrpl(max_iter = 10000,
                                             is_wo_shock = True)
-            print('elapsed time = {0}\n'.format(timedelta(seconds = elapsed_time_iii)))
-            
+            print('elapsed time = {0}'.format(timedelta(seconds = elapsed_time_iii)))
+            print('# of iteration = {0}\n'.format(iteration_iii))
+                        
             # Graphics
             fig3, ax3 = plt.subplots(3, 1, figsize=(12, 16))
             ax3[0].plot(self.b_grid,self.b_grid,
