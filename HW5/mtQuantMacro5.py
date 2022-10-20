@@ -3,7 +3,7 @@
 """
 mtQuantMacroHW5.py
 
-is the python class for the assignment #4 of Quantitative Macroeconomic Theory
+is the python class for the assignment #5 of Quantitative Macroeconomic Theory
 at Washington University in St. Louis.
 
 ...............................................................................
