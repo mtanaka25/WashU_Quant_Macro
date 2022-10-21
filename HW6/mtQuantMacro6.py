@@ -36,7 +36,7 @@ class KV2010:
                  var_z0    = 0.150, # initial variance of z
                  var_eps   = 0.050, # variance of epsilon
                  mu_eps    = 0.000, # mean of epsilon
-                 penalty   = 1E-5, # penalty consumption if c is negative
+                 penalty   = 1E-20, # penalty consumption if c is negative
                  ):
         
         # Prepare grid points for a
@@ -83,74 +83,91 @@ class KV2010:
         self.z_grid = self.z_process.z_grid
         self.trans_mat = self.z_process.trans_mat
     
+    
     def utility(self, age, a, a_prime, z, eps = 0):
         # income at the given age
-        if age >= self.old_age_vec[0]:
-            y = self.pension(z) # z: z at age 65
-        else:
-            y = self.income(age, z, eps) # z: current z
-        #print(y)
+        Y = self.income(age, z, eps)
         # Calculate consumption from the budget constraint
-        c = self.R * a + y - a_prime
+        c = self.R * a + Y - a_prime
+        # If c is negstive, give a penalty
         if (np.isscalar(c)):
             if c <= 0:
                 c = self.penalty
         else:
             c[c<=0] = self.penalty
-        
         # Calculate the CES utility
         u = c**(1-self.sig) / (1-self.sig)
         return u
     
+    
     def income(self, age, z, eps):
-        lnY = self.income_trend(age) + z + eps
+        if np.isscalar(age):
+            if age > self.working_age_vec[-1]:
+                Y = self.pension(z)
+            else:
+                Y = self.earnings(age, z, eps)
+        else:
+            Y = np.zeros((len(age),))
+            for i, age_i in enumerate(age):
+                if age_i > self.working_age_vec[-1]:
+                    Y[i] = self.pension[z[i]]
+                else:
+                    Y[i] = self.earnings(age, z[i], eps[i])
+        return Y
+    
+    def deterministic_earnings(self,
+                                age,
+                                coef0 = -1.0135,
+                                coef1 =  0.1086,
+                                coef2 = -0.001122):
+        det_earnings = np.log(coef0 + coef1*age + coef2 * age**2)
+        return det_earnings
+    
+    def earnings(self, age, z, eps):
+        lnY = self.deterministic_earnings(age) + z + eps
         Y = np.exp(lnY)
         return Y
     
     def pension(self, z):
-        pension_flow = 0.7 * np.exp(z + self.income_trend(self.working_age_vec[-1]))
+        pension_flow = 0.7 * np.exp(z + self.deterministic_earnings(self.working_age_vec[-1]))
         return pension_flow
     
-    def income_trend(self,
-                    age,
-                    coef0 = -1.0135,
-                    coef1 =  0.1086,
-                    coef2 = -0.001122):
-        income_trend_at_age = np.log(coef0 + coef1*age + coef2 * age**2)
-        return income_trend_at_age
     
     def solve_for_V(self, a, z, eps, age, V_prime, interpolate=False):
-        # the current z's index in z grid
-        z_idx = find_nearest_idx(z, self.z_grid)
-        
-        # Pick up the transition matrix of z (depending on age)
-        if age < self.working_age_vec[-1]:
-            if interpolate:
-                trans_mat = self.trans_mat_finer
+        # if the sample reaches the last age of life, the value of the state is
+        # simply the instantaneous utility. And, in that case, the sample is
+        # no longer allowrd to borrow.
+        if age == self.age_vec[-1]:
+            V = self.utility(a = a, z = z, eps = eps, age = age, a_prime = 0)
+            a_prime_star = 0
+        else:
+            # the current z's index in z grid
+            z_idx = find_nearest_idx(z, self.z_grid)
+            # Pick up the transition matrix of z (depending on age)
+            if age < self.working_age_vec[-1]:
+                if interpolate:
+                    trans_mat = self.trans_mat_finer
+                else:
+                    trans_mat = self.trans_mat
             else:
-                trans_mat = self.trans_mat
-        else:
-            # During the old ages, z is fixed at the level when retiring
-            
-            trans_mat = np.eye(len(self.z_grid))
-        
-        # prepare the (horizontal) vector of a'
-        if interpolate:
-            a_prime = (self.a_finer_grid).reshape(1, -1)
-        else:
-            a_prime = (self.a_grid).reshape(1, -1)
-        
-        # Calculate the possible values
-        utility = self.utility(a = a, z = z, eps=eps, age=age, a_prime=a_prime)
-        expected_V = trans_mat[z_idx, :] @ [0.5 * V_prime[0, :, :] + 0.5 * V_prime[1, :, :]]
-        possible_V = utility + self.beta * expected_V
-        
-        # Take max
-        V = np.nanmax(possible_V)
-        a_prime_star_idx = np.nanargmax(possible_V)
-        a_prime_star = a_prime[0, a_prime_star_idx]
-        
+                # During the old ages, z is fixed at the level when retiring
+                trans_mat = np.eye(len(self.z_grid))
+            # prepare the (horizontal) vector of a'
+            if interpolate:
+                a_prime = (self.a_finer_grid).reshape(1, -1)
+            else:
+                a_prime = (self.a_grid).reshape(1, -1)
+            # Calculate the possible values
+            utility = self.utility(a = a, z = z, eps=eps, age=age, a_prime=a_prime)
+            expected_V = trans_mat[z_idx, :] @ [0.5 * V_prime[0, :, :] + 0.5 * V_prime[1, :, :]]
+            possible_V = utility + self.beta * expected_V
+            # Take max
+            V = np.nanmax(possible_V)
+            a_prime_star_idx = np.nanargmax(possible_V)
+            a_prime_star = a_prime[0, a_prime_star_idx]
+        # Return the maximized value and the optimal asset holding
         return V, a_prime_star
+    
     
     def value_func_iter(self, interpolate=False, N_z_finer=100, N_a_finer=2000):
         # Prepare the terminal value of V' (The afterlife is supposed worthless.)
@@ -187,6 +204,7 @@ class KV2010:
         
         # start stop watch
         stopwatch = StopWatch()
+        print('Solving backward the discretized model...\n')
         # Solve backward (with respect to age)
         for count, age in enumerate(reversed(self.age_vec)):
             age_idx = - (count + 1)
@@ -227,53 +245,68 @@ class KV2010:
         # Prepare the nested functions
         cumsum_transmat = np.cumsum(self.trans_mat, axis = 1)
         def draw_z_prime_idx(z_idx):
+            # Prepare criteria to pin down z'
             cumsum_transmat_z = cumsum_transmat[z_idx, :]
+            # Draw a random number
             rand_val = uniform(0, 1)
-            is_below = (cumsum_transmat_z < rand_val)
-            z_prime_idx = np.sum(is_below)
+            # Decide z' depending on the random draw
+            z_prime_idx = np.sum(cumsum_transmat_z < rand_val)
             return int(z_prime_idx)
         def draw_eps_prime_idx():
+            # Choose the epsilon' idx which is closer to random draw
             return int(round(uniform(0, 1)))
         
-        # Prepare the vectors for the sample path
-        eps_path_idx    = np.zeros(self.working_age_vec.shape, dtype = np.uint8)
+        # Prepare the index vectors for sample z and epsilon
+        # (The vectors contain indices, so dtype is a kind of integer)
+        eps_path_idx    = np.zeros(self.age_vec.shape, dtype = np.uint8)
         eps_path_idx[0] = init_eps_idx
-        z_path_idx   = np.zeros(self.working_age_vec.shape, dtype = np.uint8)
+        z_path_idx   = np.zeros(self.age_vec.shape, dtype = np.uint8)
         z_path_idx[0]= init_z_idx
         
-        for i in range(len(self.working_age_vec)-1):
-            eps_path_idx[i + 1] = draw_eps_prime_idx()
-            z_path_idx[i + 1] = draw_z_prime_idx(z_path_idx[i])
-        
+        for i in range(1, len(self.age_vec), 1):
+            if i < len(self.working_age_vec):
+                # If the age (i) is in working age, draw z' and epsilon'
+                eps_path_idx[i] = draw_eps_prime_idx()
+                z_path_idx[i]   = draw_z_prime_idx(z_path_idx[i-1])
+            else:
+                # If the age is in old age, fix z at the level when retiring
+                # Note that while epsilon is no longer irrelevant to old ages,
+                # we repeat epsilon as well in order to simplify the script
+                eps_path_idx[i] = eps_path_idx[i-1]
+                z_path_idx[i] = z_path_idx[i-1]
         return eps_path_idx, z_path_idx
     
     
     def simulate_single_sample(self,
                                 init_a = 0, # initial asset holding
-                                init_z_idx = 14, # the index of z at age 25
+                                init_z_idx = 4, # the index of z at age 25
                                 init_eps_idx = 0 # the index of epsilon at age 25
                                 ):
+        # Draw random epsion and z
         eps_path_idx, z_path_idx = \
             self.get_stochastic_path(init_z_idx = init_z_idx,
                                      init_eps_idx = init_eps_idx)
-        # income history
         eps_path = self.eps_vec[eps_path_idx]
         z_path = self.z_grid[z_path_idx]
-        Y_path = self.income(age = self.working_age_vec,
-                             z = z_path,
-                             eps = eps_path)
-        # asset and consumption history
-        a_prime_path = np.zeros(self.working_age_vec.shape)
-        c_path = np.zeros(self.working_age_vec.shape)
-        a_idx = find_nearest_idx(init_a, self.a_grid)
-        for i in range(len(self.working_age_vec)):
+        
+        # Simulate the subject's life using the drawn shocks
+        a_prime_path = np.zeros(self.age_vec.shape)
+        c_path = np.zeros(self.age_vec.shape)
+        Y_path = np.zeros(self.age_vec.shape)
+        # initial value of a
+        a =  deepcopy(init_a)
+        a_idx = find_nearest_idx(a, self.a_grid)
+        for i, age_i in enumerate(self.age_vec):
+            Y_path[i] = self.income(age_i, z_path[i], eps_path[i])
             a_prime_i = self.a_prime[i,
                                     eps_path_idx[i],
                                     z_path_idx[i],
                                     a_idx]
-            c_path[i] = self.R * self.a_grid[a_idx] + Y_path[i] - a_prime_i
+            c_path[i] = self.R * a + Y_path[i] - a_prime_i
             a_prime_path[i] = a_prime_i
-            a_idx = find_nearest_idx(a_prime_i, self.a_grid)
+            # Set a_prime today to a tomorrow
+            a = deepcopy(a_prime_i)
+            a_idx = find_nearest_idx(a, self.a_grid)
         return Y_path, a_prime_path, c_path
     
     
@@ -284,7 +317,7 @@ class KV2010:
                                N_samples = 25_000,
                                ):
         # Prepare matrices for simulation result
-        mat_size = (N_samples, len(self.working_age_vec))
+        mat_size = (N_samples, len(self.age_vec))
         Y_path_mat = np.zeros(mat_size)
         c_path_mat = np.zeros(mat_size)
         a_prime_path_mat = np.zeros(mat_size)
@@ -320,17 +353,21 @@ class KV2010:
         self.lnY_var_path, self.lnc_var_path = \
             lnY_var_path, lnc_var_path
     
+    
     def calc_insurance_coef(self):
+        # to calculate the coefficient for working age, the path during
+        # old age would be cut off
+        end_idx = int(len(self.working_age_vec))
         # convert sample data into growth from the previous age
-        dY_mat = (self.Y_path_mat[1:, :] - self.Y_path_mat[:-1, :]).flatten()
-        dc_mat = (self.c_path_mat[1:, :] - self.c_path_mat[:-1, :]).flatten()
-        # calculate variance and covariace
-        var_dY = np.var(dY_mat)
-        cov_dY_dc = np.cov(dY_mat, dc_mat)[0, 1]
+        dY_mat = (self.Y_path_mat[1:, :end_idx] - self.Y_path_mat[:-1, :end_idx]).flatten()
+        dc_mat = (self.c_path_mat[1:, :end_idx] - self.c_path_mat[:-1, :end_idx]).flatten()
+        # calculate variance and covariace matrix of deltaY and deltac
+        varcov_mat_dY_dc = np.cov(dY_mat, dc_mat)
         # calculate the coefficent
-        insurance_coef = 1 - cov_dY_dc/var_dY
-        
+        insurance_coef = 1 - varcov_mat_dY_dc[0, 1]/varcov_mat_dY_dc[0, 0]
+        # Store the coef in the instance
         self.insurance_coef = insurance_coef
+    
     
     def solve_question_1a(self,
                         method = 'Rouwenhorst',
@@ -400,20 +437,21 @@ class KV2010:
                                                               init_eps_idx = init_eps_idx)
         
         fig, ax = plt.subplots(1, 1,  figsize=(12, 8))
-        x_label = self.working_age_vec
+        x_label = self.age_vec
         ax.plot(x_label, c_path,
-                c = 'gray',lw = 2.5, label = 'c')
+                c = 'green',lw = 1.5, label = '$c$')
         ax.plot(x_label, a_prime_path,
-                c = 'blue',lw = 1.5, ls = 'dashed', label = "$a'$")
+                c = 'red',  lw = 1.5, label = "$a'$")
         ax.plot(x_label, Y_path,
-                c = 'red',lw = 2., label = 'Y')
+                c = 'blue', lw = 1.5, label = '$Y$')
         ax.set_xlabel("age")
         ax.legend(frameon=False)
         plt.savefig(fname, dpi = 150, bbox_inches='tight', pad_inches=0)
-        
+    
+    
     def solve_question_1c(self,
                             init_a = 0.,
-                            init_z_idx = 4,
+                            init_z_idx = 5,
                             init_eps_idx = 0,
                             N_samples = 25_000,
                             fix_seed = None,
@@ -433,28 +471,29 @@ class KV2010:
         
         # Graphics
         fig, ax = plt.subplots(2, 1,  figsize=(12, 8))
-        x_label = self.working_age_vec
+        x_label = self.age_vec
         ax[0].plot(x_label, self.c_path_mean,
-                   c = 'gray',lw = 2.5, label = 'c')
+                   c = 'green', lw = 1.5, label = '$c$')
         ax[0].plot(x_label, self.a_prime_path_mean,
-                   c = 'blue',lw = 1.5, ls = 'dashed', label = "$a'$")
+                   c = 'red',   lw = 1.5, label = "$a'$")
         ax[0].plot(x_label, self.Y_path_mean,
-                   c = 'red',lw = 2., label = 'Y')
+                   c = 'blue',  lw = 1.5, label = '$Y$')
         ax[0].set_xlabel("age")
         ax[0].legend(frameon=False)
         
         ax[1].plot(x_label, self.lnc_var_path,
-                   c = 'gray',lw = 2.5, label = 'c')
+                   c = 'green', lw = 1.5, label = '$var(ln c)$')
         ax[1].plot(x_label, self.lnY_var_path,
-                   c = 'red',lw = 2., label = 'Y')
+                   c = 'blue',  lw = 1.5, label = '$var(ln Y)$')
         ax[1].set_xlabel("age")
         ax[1].legend(frameon=False)
         plt.savefig(fname, dpi = 150, bbox_inches='tight', pad_inches=0)
-        
+    
+    
 def draw_graph_for_question_1d(benchmark, alt_spec):
     # Graphics
     fig, ax = plt.subplots(2, 1,  figsize=(12, 8))
-    x_label = benchmark.working_age_vec
+    x_label = benchmark.age_vec
     ax[0].plot(x_label, benchmark.c_path_mean,
                 c = 'green', lw = 1.5, label = 'c: benchmark')
     ax[0].plot(x_label, benchmark.a_prime_path_mean,
@@ -485,4 +524,4 @@ def draw_graph_for_question_1d(benchmark, alt_spec):
                 label = 'Y: alternative spec')
     ax[1].set_xlabel("age")
     ax[1].legend(frameon=False)
-    plt.savefig('fig1(d).png', dpi = 150, bbox_inches='tight', pad_inches=0)
+    plt.savefig('Q1(d).png', dpi = 150, bbox_inches='tight', pad_inches=0)

@@ -45,7 +45,7 @@ print("\n",
       "\n           Question 1 (b)          ",\
       "\n **********************************",\
       )
-benchmark.solve_question_1b(fix_seed = 1234)
+benchmark.solve_question_1b(fix_seed = 9999)
 
 # =========================================================================
 # Question 1 (c).
@@ -55,7 +55,7 @@ print("\n",
       "\n           Question 1 (c)          ",\
       "\n **********************************",\
       )
-benchmark.solve_question_1c(fix_seed = 1234)
+benchmark.solve_question_1c(fix_seed = 9999)
 
 # =========================================================================
 # Question 1 (d).
@@ -69,8 +69,8 @@ alt_borrowing_constraint = - np.exp(benchmark.z_grid[3])
 
 more_borrowable = KV2010(a_lb = alt_borrowing_constraint)
 more_borrowable.solve_question_1a(fname = 'Q1(d)a.png')
-more_borrowable.solve_question_1b(fname = 'Q1(d)b.png', fix_seed = 1234)
-more_borrowable.solve_question_1c(fname = 'Q1(d)c.png', fix_seed = 1234)
+more_borrowable.solve_question_1b(fname = 'Q1(d)b.png', fix_seed = 9999)
+more_borrowable.solve_question_1c(fname = 'Q1(d)c.png', fix_seed = 9999)
 
 draw_graph_for_question_1d(benchmark = benchmark,
                            alt_spec = more_borrowable)
