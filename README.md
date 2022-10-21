@@ -24,6 +24,7 @@ Note that, in case I would write MATLAB codes, I would use R2022b.
 
 In the codes in `HW1` and `HW2`, I use `freadapi` and `statsmodels` packages, which are not included in standard collections of Python packages. To use `freadapi`, you need to apply a API key to St. Louis Fed. The application is accepted online for free. 
 
+After finishing `HW5`, I cut out several routines which are often used in the assignments as an independent package. Thus, for `HW6` and later, you need `mtPythonTools`, which is available in [the corresponding repository](https://github.com/mtanaka25/mtPythonTools).  
 
 ## Cautions
 In `HW4`, we were asked to implement the policy iteration based on the Euler equation and the endogenous grid point method (see [Carroll [2006, *Econ. Lett.*]](https://doi.org/10.1016/j.econlet.2005.09.013) for the EGP method). Although I finished writing scripts that looked to work well, however, I failed to get reasonable solutions. So, please doublecheck if these codes are correct when you reuse them.
