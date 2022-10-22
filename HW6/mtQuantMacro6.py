@@ -22,9 +22,11 @@ from mtPyEcon import AR1_process, PiecewiseIntrpl_MeshGrid
 from mtPyTools import StopWatch, find_nearest_idx
 
 class KV2010:
+    # ======== The methods in this section are not expected directly called in main.py ==========
+    # ======== These would work in the background ===============================================
     def __init__(self,
                  a_lb      = 0.,  # borrowing constraint
-                 a_max     = 300., # max
+                 a_max     = 30., # max
                  age_range = (25, 80), # range of ages
                  first_old_age = 66, # the age when the old-age period begins
                  N_a       = 500,  # # of grid points for a
@@ -50,38 +52,54 @@ class KV2010:
         # Define AR(1) process using the AR1_process class
         z_process = AR1_process(rho = rho,
                                 sig = np.sqrt(var_eta),
-                                varname = 'z')
+                                varname = 'z',
+                                sig_init_val = np.sqrt(var_z0),
+                                is_stationary = False)
         
         # discretize epsilon
         eps_vec = np.array([mu_eps - np.sqrt(var_eps/2), mu_eps + np.sqrt(var_eps/2)])
         
         # Store the model information as instance attributes
         self.beta, self.R, self.sig = beta, R, sig
-        self.sig_z0 = np.sqrt(var_z0)
         self.eps_vec = eps_vec
         self.z_process = z_process
+        self.N_a, self.N_eps = N_a, 2
+        self.N_age, self.N_w_age = len(age_vec), len(working_age_vec)
         self.age_vec = age_vec
         self.old_age_vec = old_age_vec
         self.working_age_vec = working_age_vec
         self.a_grid = a_grid
         self.penalty = penalty
+
     
+    def age_idx(self, age):
+        age_idx = age - self.age_vec[0]
+        return int(age_idx)
     
     def discretize_z_process(self,
                              method = 'Rouwenhorst',
-                             N = 20, # number of grid points
+                             N_z = 20, # number of grid points
                              Omega = 3, # scale parameter for Tauchen grid
                              is_write_out_result = False,
                              is_quiet = False):
         self.z_process.discretize(method = method,
-                                  N = N,
+                                  N = N_z,
                                   Omega = Omega,
+                                  approx_horizon = len(self.working_age_vec),
                                   is_write_out_result = is_write_out_result,
                                   is_quiet = is_quiet)
+        z_grid_list = self.z_process.z_grid_list
+        trans_mat_list = self.z_process.trans_mat_list
+        trans_mat_list.append(np.eye(N_z))
+        for t in range(self.N_age - self.N_w_age):
+            z_grid_list.append(z_grid_list[-1])
+            trans_mat_list.append(trans_mat_list[-1])
+            
         # For future convienience, take out grid and transition matrix from AR1 instance.
         self.discretization_method = method
-        self.z_grid = self.z_process.z_grid
-        self.trans_mat = self.z_process.trans_mat
+        self.z_grid_list = z_grid_list
+        self.trans_mat_list = trans_mat_list
+        self.N_z = N_z
     
     
     def utility(self, age, a, a_prime, z, eps = 0):
@@ -99,7 +117,6 @@ class KV2010:
         u = c**(1-self.sig) / (1-self.sig)
         return u
     
-    
     def income(self, age, z, eps):
         if np.isscalar(age):
             if age > self.working_age_vec[-1]:
@@ -110,9 +127,9 @@ class KV2010:
             Y = np.zeros((len(age),))
             for i, age_i in enumerate(age):
                 if age_i > self.working_age_vec[-1]:
-                    Y[i] = self.pension[z[i]]
+                    Y[i] = self.pension(z[i])
                 else:
-                    Y[i] = self.earnings(age, z[i], eps[i])
+                    Y[i] = self.earnings(age_i, z[i], eps[i])
         return Y
     
     def deterministic_earnings(self,
@@ -132,6 +149,13 @@ class KV2010:
         pension_flow = 0.7 * np.exp(z + self.deterministic_earnings(self.working_age_vec[-1]))
         return pension_flow
     
+    def make_income_array(self):
+        income_array = [[[
+            [self.income(age, z, eps) for a in self.a_grid]
+            for z in self.z_grid_list[i]]
+            for eps in self.eps_vec]
+            for i, age in enumerate(self.age_vec)]
+        self.income_array = np.array(income_array)
     
     def solve_for_V(self, a, z, eps, age, V_prime, interpolate=False):
         # if the sample reaches the last age of life, the value of the state is
@@ -141,24 +165,22 @@ class KV2010:
             V = self.utility(a = a, z = z, eps = eps, age = age, a_prime = 0)
             a_prime_star = 0
         else:
+            # pick up z_grid for the given age
+            z_grid = self.z_grid_list[self.age_idx(age)]
             # the current z's index in z grid
-            z_idx = find_nearest_idx(z, self.z_grid)
-            # Pick up the transition matrix of z (depending on age)
-            if age < self.working_age_vec[-1]:
-                if interpolate:
-                    trans_mat = self.trans_mat_finer
-                else:
-                    trans_mat = self.trans_mat
+            z_idx = find_nearest_idx(z, z_grid)
+            # pick up the transition matrix for the given age
+            if interpolate:
+                trans_mat = self.trans_mat_finer_list[self.age_idx(age)]
             else:
-                # During the old ages, z is fixed at the level when retiring
-                trans_mat = np.eye(len(self.z_grid))
+                trans_mat = self.trans_mat_list[self.age_idx(age)]
             # prepare the (horizontal) vector of a'
             if interpolate:
                 a_prime = (self.a_finer_grid).reshape(1, -1)
             else:
                 a_prime = (self.a_grid).reshape(1, -1)
             # Calculate the possible values
-            utility = self.utility(a = a, z = z, eps=eps, age=age, a_prime=a_prime)
+            utility = self.utility(a=a, z=z, eps=eps, age=age, a_prime=a_prime)
             expected_V = trans_mat[z_idx, :] @ [0.5 * V_prime[0, :, :] + 0.5 * V_prime[1, :, :]]
             possible_V = utility + self.beta * expected_V
             # Take max
@@ -171,33 +193,35 @@ class KV2010:
     
     def value_func_iter(self, interpolate=False, N_z_finer=100, N_a_finer=2000):
         # Prepare the terminal value of V' (The afterlife is supposed worthless.)
-        V_prime = np.zeros((len(self.eps_vec), len(self.z_grid), len(self.a_grid)))
+        V_prime = np.zeros((self.N_eps, self.N_z, self.N_a))
         
         # Prepare 4D arrays where the matrices of V and a' for each age and epsilon will be stored
-        V_4Darray = np.zeros((len(self.age_vec), len(self.eps_vec), len(self.z_grid), len(self.a_grid)))
-        a_prime_4Darray = np.zeros((len(self.age_vec), len(self.eps_vec), len(self.z_grid), len(self.a_grid)))
+        V_4Darray = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+        a_prime_4Darray = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
         
         # When using interpolation, do necessary preparations
         if interpolate:
             # back up the original transition matrix and grid points
-            z_grid_original, trans_mat_original = deepcopy(self.z_grid), deepcopy(self.trans_mat)
+            z_grid_original, trans_mat_original = deepcopy(self.z_grid_list), deepcopy(self.trans_mat_list)
             
             # Rerun discretization to obtain the finer transition matrix
             # -- Be careful that self.z_gird and self.trans_mat would be overwritten
             self.discretize_z_process(method = self.discretization_method,
-                                      N = N_z_finer,
+                                      N_z = N_z_finer,
                                       is_write_out_result = False,
-                                      is_quiet = True)
+                                      is_quiet = True
+                                      )
             
             # exchange the variable names
-            self.z_grid, self.z_finer_grid = z_grid_original, self.z_grid
+            self.z_grid_list, self.z_finer_grid_list = z_grid_original, self.z_grid_list
             
             # Reduce the size of the transition matrix to N_A * N_A_finer
-            z_grid_correspondence = find_nearest_idx(self.z_grid, self.z_finer_grid)
-            self.trans_mat = self.trans_mat[z_grid_correspondence, :]
+            for i in range(len(self.trans_mat_list)):
+                z_grid_correspondence = find_nearest_idx(self.z_grid_list[i], self.z_finer_grid_list[i])
+                self.trans_mat_list[i] = self.trans_mat_list[i][z_grid_correspondence, :]
             
             # exchange the variable names
-            self.trans_mat, self.trans_mat_finer = trans_mat_original, self.trans_mat
+            self.trans_mat_list, self.trans_mat_finer_list = trans_mat_original, self.trans_mat_list
             
             # Prepare the finer grid for a
             self.a_finer_grid = np.linspace(self.a_grid[0], self.a_grid[-1], N_a_finer)
@@ -206,23 +230,25 @@ class KV2010:
         stopwatch = StopWatch()
         print('Solving backward the discretized model...\n')
         # Solve backward (with respect to age)
-        for count, age in enumerate(reversed(self.age_vec)):
-            age_idx = - (count + 1)
+        for age in reversed(self.age_vec):
+            age_idx = self.age_idx(age)
+            z_grid = self.z_grid_list[age_idx]
             if interpolate: # If use interpolation, do so.
-                V_prime_0_intrpl = PiecewiseIntrpl_MeshGrid(self.z_grid, self.a_grid, V_prime[0, :, :])
-                V_prime_1_intrpl = PiecewiseIntrpl_MeshGrid(self.z_grid, self.a_grid, V_prime[1, :, :])
+                z_finer_grid = self.z_finer_grid_list[age_idx]
+                V_prime_0_intrpl = PiecewiseIntrpl_MeshGrid(z_grid, self.a_grid, V_prime[0, :, :])
+                V_prime_1_intrpl = PiecewiseIntrpl_MeshGrid(z_grid, self.a_grid, V_prime[1, :, :])
                 if age < self.working_age_vec[-1]:
-                    V_prime_0_finer = V_prime_0_intrpl(self.z_finer_grid, self.a_finer_grid)
-                    V_prime_1_finer = V_prime_1_intrpl(self.z_finer_grid, self.a_finer_grid)
+                    V_prime_0_finer = V_prime_0_intrpl(z_finer_grid, self.a_finer_grid)
+                    V_prime_1_finer = V_prime_1_intrpl(z_finer_grid, self.a_finer_grid)
                 else:
                     # After retiring, z does not change. So, interpolate only wrt a.
-                    V_prime_0_finer = V_prime_0_intrpl(self.z_grid, self.a_finer_grid)
-                    V_prime_1_finer = V_prime_1_intrpl(self.z_grid, self.a_finer_grid)
+                    V_prime_0_finer = V_prime_0_intrpl(z_grid, self.a_finer_grid)
+                    V_prime_1_finer = V_prime_1_intrpl(z_grid, self.a_finer_grid)
                 V_prime = np.array([V_prime_0_finer, V_prime_1_finer])
             
             # calculate the maximized V and the optimal b' for each epsilon, z and a
             for eps_idx, eps in enumerate(self.eps_vec):
-                for z_idx, z in enumerate(self.z_grid):
+                for z_idx, z in enumerate(z_grid):
                     for a_idx, a in enumerate(self.a_grid):
                         V_for_this_state, a_prime_for_this_state =\
                             self.solve_for_V(a = a,
@@ -243,10 +269,13 @@ class KV2010:
     
     def get_stochastic_path(self, init_z_idx, init_eps_idx):
         # Prepare the nested functions
-        cumsum_transmat = np.cumsum(self.trans_mat, axis = 1)
-        def draw_z_prime_idx(z_idx):
+        cumsum_transmat_list = [
+            np.cumsum(self.trans_mat_list[i], axis = 1)
+            for i in range(len(self.trans_mat_list))
+            ]
+        def draw_z_prime_idx(z_idx, age_idx):
             # Prepare criteria to pin down z'
-            cumsum_transmat_z = cumsum_transmat[z_idx, :]
+            cumsum_transmat_z = cumsum_transmat_list[age_idx][z_idx, :]
             # Draw a random number
             rand_val = uniform(0, 1)
             # Decide z' depending on the random draw
@@ -263,11 +292,11 @@ class KV2010:
         z_path_idx   = np.zeros(self.age_vec.shape, dtype = np.uint8)
         z_path_idx[0]= init_z_idx
         
-        for i in range(1, len(self.age_vec), 1):
+        for i in range(1, self.N_age, 1):
             if i < len(self.working_age_vec):
                 # If the age (i) is in working age, draw z' and epsilon'
                 eps_path_idx[i] = draw_eps_prime_idx()
-                z_path_idx[i]   = draw_z_prime_idx(z_path_idx[i-1])
+                z_path_idx[i]   = draw_z_prime_idx(z_path_idx[i-1], age_idx = i-1)
             else:
                 # If the age is in old age, fix z at the level when retiring
                 # Note that while epsilon is no longer irrelevant to old ages,
@@ -286,9 +315,6 @@ class KV2010:
         eps_path_idx, z_path_idx = \
             self.get_stochastic_path(init_z_idx = init_z_idx,
                                      init_eps_idx = init_eps_idx)
-        eps_path = self.eps_vec[eps_path_idx]
-        z_path = self.z_grid[z_path_idx]
-        
         # Simulate the subject's life using the drawn shocks
         a_prime_path = np.zeros(self.age_vec.shape)
         c_path = np.zeros(self.age_vec.shape)
@@ -297,7 +323,9 @@ class KV2010:
         a =  deepcopy(init_a)
         a_idx = find_nearest_idx(a, self.a_grid)
         for i, age_i in enumerate(self.age_vec):
-            Y_path[i] = self.income(age_i, z_path[i], eps_path[i])
+            eps_i = self.eps_vec[eps_path_idx[i]]
+            z_i = self.z_grid_list[i][z_path_idx[i]]
+            Y_path[i] = self.income(age_i, z_i, eps_i)
             a_prime_i = self.a_prime[i,
                                     eps_path_idx[i],
                                     z_path_idx[i],
@@ -317,10 +345,9 @@ class KV2010:
                                N_samples = 25_000,
                                ):
         # Prepare matrices for simulation result
-        mat_size = (N_samples, len(self.age_vec))
-        Y_path_mat = np.zeros(mat_size)
-        c_path_mat = np.zeros(mat_size)
-        a_prime_path_mat = np.zeros(mat_size)
+        Y_path_mat = np.zeros((N_samples, self.N_age))
+        c_path_mat = np.zeros((N_samples, self.N_age))
+        a_prime_path_mat = np.zeros((N_samples, self.N_age))
         
         print('Running simulation with {0} samples...\n'.format(N_samples))
         stopwatch = StopWatch()
@@ -358,9 +385,11 @@ class KV2010:
         # to calculate the coefficient for working age, the path during
         # old age would be cut off
         end_idx = int(len(self.working_age_vec))
-        # convert sample data into growth from the previous age
-        dY_mat = (self.Y_path_mat[1:, :end_idx] - self.Y_path_mat[:-1, :end_idx]).flatten()
-        dc_mat = (self.c_path_mat[1:, :end_idx] - self.c_path_mat[:-1, :end_idx]).flatten()
+        # convert sample data into log-differences from the previous age
+        dY_mat = (np.log(self.Y_path_mat[1:, :end_idx])
+                  - np.log(self.Y_path_mat[:-1, :end_idx])).flatten()
+        dc_mat = (np.log(self.c_path_mat[1:, :end_idx])
+                  - np.log(self.c_path_mat[:-1, :end_idx])).flatten()
         # calculate variance and covariace matrix of deltaY and deltac
         varcov_mat_dY_dc = np.cov(dY_mat, dc_mat)
         # calculate the coefficent
@@ -369,10 +398,91 @@ class KV2010:
         self.insurance_coef = insurance_coef
     
     
+    def solve_for_distribution(self):
+        # Prepare a 4D array for the initial distribution
+        # -- The distribution is given a 4D array whose size is
+        #        (# of age) *  (# of possible epsilon) * (# of possible z) * (# of possible a)
+        population = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+        # The distribution at age 25 is assumed as follows.
+        # -- Nobady is assumed to hold a strictly positive amount of asset at the starting age
+        # -- z and epsilon are uniformly distributed
+        no_asset_idx = find_nearest_idx(0, self.a_grid)
+        population[0, :, :, no_asset_idx] = 1 / (self.N_eps * self.N_z)
+        
+        print('Solving for the distribution...\n')
+        stopwatch = StopWatch()
+        for age_idx in range(len(self.age_vec) - 1):
+            population[age_idx + 1, :, :, :] = \
+                self._solve_for_dist_routine(age_idx, population[age_idx, :, :, :])
+        stopwatch.stop()
+        self.distribution = population
+    
+    def _solve_for_dist_routine(self, age_idx, pdf_pre):
+        # Simplify notation
+        a = self.a_grid
+        a_prime = self.a_prime
+        # Pick up the transition matrix
+        trans_mat = self.trans_mat_list[age_idx]
+        # Define a nested function to update each entry in pdf
+        def updated_pdf_element(z_idx, a_idx):
+            def indicator(a_array, idx):
+                condition_1 = np.zeros(a_array.shape)
+                condition_2 = np.zeros(a_array.shape)
+                if idx == 1:
+                    condition_1[a[idx-1] <= a_array] = 1
+                    condition_2[a[idx] >= a_array] = 1
+                else:
+                    condition_1[a[idx-1] < a_array] = 1
+                    condition_2[a[idx] >= a_array] = 1
+                indicator_mat = condition_1 * condition_2
+                return indicator_mat
+            
+            if  a_idx == 0:
+                below_from_epsL, below_from_epsH = 0, 0
+            else:
+                below_from_epsL = np.sum(
+                        0.5 * trans_mat.T[z_idx, :] @ (
+                        indicator(a_prime[age_idx, 0, :, :], a_idx)
+                        * (a_prime[age_idx, 0, :, :] - a[a_idx-1])/(a[a_idx] - a[a_idx-1])
+                        * pdf_pre[0, : , :]
+                        ))
+                below_from_epsH = np.sum(
+                        0.5 * trans_mat.T[z_idx, :] @ (
+                        indicator(a_prime[age_idx, 1, :, :], a_idx)
+                        * (a_prime[age_idx, 1, :, :] - a[a_idx-1])/(a[a_idx] - a[a_idx-1])
+                        * pdf_pre[1, : , :]
+                        ))
+            if  a_idx == len(self.a_grid)-1:
+                above_from_epsL, above_from_epsH = 0, 0
+            else:
+                above_from_epsL = np.sum(
+                        0.5 * trans_mat.T[z_idx, :] @ (
+                        indicator(a_prime[age_idx, 0, :, :], a_idx+1)
+                        * (a[a_idx+1] - a_prime[age_idx, 0, :, :])/(a[a_idx+1] - a[a_idx])
+                        * pdf_pre[0, : , :]
+                        ))
+                above_from_epsH = np.sum(
+                        0.5 * trans_mat.T[z_idx, :] @ (
+                        indicator(a_prime[age_idx, 1, :, :], a_idx+1)
+                        * (a[a_idx+1] - a_prime[age_idx, 1, :, :])/(a[a_idx+1] - a[a_idx])
+                        * pdf_pre[1, : , :]
+                        ))
+            element = below_from_epsL + below_from_epsH + above_from_epsL + above_from_epsH
+            return element
+        
+        # Update the pdf
+        pdf_at_the_age = [[
+            [updated_pdf_element(z_idx, a_idx) for a_idx in range(self.N_a)]
+            for z_idx in range(self.N_z)]
+            for eps_idx in range(self.N_eps)]
+        
+        return np.array(pdf_at_the_age)
+    
+    # ======== The following methods are expected directly called in main.py ==========
     def solve_question_1a(self,
                         method = 'Rouwenhorst',
                         ages2plot = (25, 40, 60),
-                        z2plot    = (5, 10, 15),
+                        z2plot    = (4, 9, 14),
                         interpolate = False,
                         N_z_finer = 100,
                         N_a_finer = 2000,
@@ -385,7 +495,6 @@ class KV2010:
                             N_a_finer   = N_a_finer)
         
         # graphics
-        z_idx    = find_nearest_idx(z2plot, self.z_grid)
         ages_idx = find_nearest_idx(ages2plot, self.age_vec)
         
         fig, ax = plt.subplots(3, 1, figsize=(12, 16))
@@ -394,15 +503,15 @@ class KV2010:
             ax[i].plot(self.a_grid,self.a_grid,
                         lw = 0.75, c = 'black', label = '45 degree line')
             ax[i].plot(self.a_grid,
-                        self.a_prime[ages_idx[0], 0, z_idx[i], :].flatten(),
+                        self.a_prime[ages_idx[0], 0, z2plot[i], :].flatten(),
                         lw = 1.5, c = 'gray', ls = 'dashed',
                         label='{0} years old'.format(ages2plot[0]))
             ax[i].plot(self.a_grid,
-                        self.a_prime[ages_idx[1], 0, z_idx[i], :].flatten(),
+                        self.a_prime[ages_idx[1], 0, z2plot[i], :].flatten(),
                         lw = 1.5, c = 'blue',
                         label='{0} years old'.format(ages2plot[1]))
             ax[i].plot(self.a_grid,
-                        self.a_prime[ages_idx[2], 0, z_idx[i], :].flatten(),
+                        self.a_prime[ages_idx[2], 0, z2plot[i], :].flatten(),
                         lw = 2.5, c = 'red',
                         label='{0} years old'.format(ages2plot[2]))
             ax[i].set_xlabel("$a$")
@@ -410,10 +519,10 @@ class KV2010:
             ax[i].legend(frameon=False)
         ax[2].plot(self.a_grid, self.a_grid,
                     lw = 0.75, c = 'black', label = '45 degree line')
-        ax[2].plot(self.a_grid, self.a_prime[ages_idx[1], 0, z_idx[2], :].flatten(),
+        ax[2].plot(self.a_grid, self.a_prime[ages_idx[1], 0, z2plot[2], :].flatten(),
                         lw = 1.5, c = 'blue',
                         label='\\varepsilon_L')
-        ax[2].plot(self.a_grid, self.a_prime[ages_idx[1], 1, z_idx[2], :].flatten(),
+        ax[2].plot(self.a_grid, self.a_prime[ages_idx[1], 1, z2plot[2], :].flatten(),
                         lw = 2.5, c = 'red',
                         label='\\varepsilon_H')
         ax[2].set_xlabel("$a$")
@@ -430,7 +539,7 @@ class KV2010:
                           fname = 'Q1(b).png'
                           ):
         if not(type(fix_seed) is type(None)):
-            seed = fix_seed
+            seed(fix_seed)
         
         Y_path, a_prime_path, c_path = self.simulate_single_sample(init_a = init_a,
                                                               init_z_idx   = init_z_idx,
@@ -489,7 +598,79 @@ class KV2010:
         ax[1].legend(frameon=False)
         plt.savefig(fname, dpi = 150, bbox_inches='tight', pad_inches=0)
     
-    
+    def solve_question_2a(self):
+        
+        self.solve_for_distribution()
+        
+        self.make_income_array()
+        
+        # Prepare data for figures 1 and 2
+        fig1_data1   = self.income_array[ 0, :, : ,:].flatten()
+        fig1_data2   = self.income_array[15, :, : ,:].flatten()
+        fig1_data3   = self.income_array[35, :, : ,:].flatten()
+        fig2_data1   = self.a_prime[ 0, :, : ,:].flatten()
+        fig2_data2   = self.a_prime[15, :, : ,:].flatten()
+        fig2_data3   = self.a_prime[35, :, : ,:].flatten()
+        fig12_weight1 = self.distribution[ 0, :, : ,:].flatten()
+        fig12_weight2 = self.distribution[15, :, : ,:].flatten()
+        fig12_weight3 = self.distribution[35, :, : ,:].flatten()
+        
+        hist11, bins1 = np.histogram(a = fig1_data1,
+                                     weights = fig12_weight1)
+        hist12, _     = np.histogram(a = fig1_data2,
+                                     bins = bins1,
+                                     weights = fig12_weight2)
+        hist13, _     = np.histogram(a = fig1_data3,
+                                     bins = bins1,
+                                     weights = fig12_weight3)
+        hist21, bins2 = np.histogram(a = fig2_data1,
+                                     weights = fig12_weight1)
+        hist22, _     = np.histogram(a = fig2_data2,
+                                     bins = bins2,
+                                     weights = fig12_weight2)
+        hist23, _     = np.histogram(a = fig2_data3,
+                                     bins = bins2,
+                                     weights = fig12_weight3)
+        
+        # Prepare data for figures 3 and 4
+        fig3_data    = self.income_array[ :, :, : ,:].flatten()
+        fig4_data    = self.a_prime[ :, :, : ,:].flatten()
+        fig34_weight = self.distribution[ :, :, : ,:].flatten()
+        hist3, bins3 = np.histogram(a = fig3_data,
+                                     weights = fig34_weight)
+        hist4, bins4 = np.histogram(a = fig4_data,
+                                     weights = fig34_weight)
+
+
+        fig1, ax1 = plt.subplots(2, 1,  figsize=(12, 8))
+        ax1[0].hist(hist11, bins1,
+                    label = 'Age: 25')
+        ax1[0].hist(hist12, bins1,
+                    label = 'Age: 40')
+        ax1[0].hist(hist13, bins1,
+                    label = 'Age: 60')
+        ax1[0].set_xlabel('income')
+        ax1[0].legend(frameon=False)
+        ax1[1].hist(hist21, bins2,
+                    label = 'Age: 25')
+        ax1[1].hist(hist22, bins2,
+                    label = 'Age: 40')
+        ax1[1].hist(hist23, bins2,
+                    label = 'Age: 60')
+        ax1[1].set_xlabel('asset')
+        ax1[1].legend(frameon=False)
+        plt.savefig('Q2(a)1.png', dpi = 150, bbox_inches='tight', pad_inches=0)
+        
+        fig2, ax2 = plt.subplots(2, 1,  figsize=(12, 8))
+        ax2[0].hist(hist3, bins3)
+        ax2[0].set_xlabel('income')
+        ax2[0].legend(frameon=False)
+        ax2[1].hist(hist4, bins4)
+        ax2[1].set_xlabel('asset')
+        ax2[1].legend(frameon=False)
+        plt.savefig('Q2(a)2.png', dpi = 150, bbox_inches='tight', pad_inches=0)
+        
+# ======== The following functions are used to compare multiple instances ==========
 def draw_graph_for_question_1d(benchmark, alt_spec):
     # Graphics
     fig, ax = plt.subplots(2, 1,  figsize=(12, 8))
