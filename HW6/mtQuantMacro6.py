@@ -414,6 +414,7 @@ class KV2010:
         for age_idx in range(len(self.age_vec) - 1):
             population[age_idx + 1, :, :, :] = \
                 self._solve_for_dist_routine(age_idx, population[age_idx, :, :, :])
+        population = population/np.sum(population)
         stopwatch.stop()
         self.distribution = population
     
@@ -478,6 +479,11 @@ class KV2010:
         
         return np.array(pdf_at_the_age)
     
+    
+    def calc_aggregate_asset(self):
+        agg_asset = np.sum(self.distribution * self.a_prime)
+        self.aggregate_asset = agg_asset
+        
     # ======== The following methods are expected directly called in main.py ==========
     def solve_question_1a(self,
                         method = 'Rouwenhorst',
@@ -598,77 +604,71 @@ class KV2010:
         ax[1].legend(frameon=False)
         plt.savefig(fname, dpi = 150, bbox_inches='tight', pad_inches=0)
     
-    def solve_question_2a(self):
+    def solve_question_2a(self,
+                          bins  = 12,
+                          a_max = 7,
+                          y_max = 7,
+                          fnames = ('Q2(a)1.png', 'Q2(a)2.png'),
+                          ):
+        if not hasattr(self, "distribution"):
+            self.solve_for_distribution()
+        if not hasattr(self, "income_array"):       
+            self.make_income_array()
         
-        self.solve_for_distribution()
+        # **************
+        fig1, ax1 = plt.subplots(2, 3,  figsize=(12, 8))
+        ax1[0, 0].hist(x = self.income_array[ 0, :, : ,:].flatten(),
+                       weights = self.distribution[ 0, :, : ,:].flatten()/np.sum(self.distribution[ 0, :, : ,:]),
+                       range = (0, y_max),
+                       bins = bins)
+        ax1[0, 0].set_title('income, age 25')
+        ax1[0, 1].hist(x = self.income_array[15, :, : ,:].flatten(),
+                       weights = self.distribution[15, :, : ,:].flatten()/np.sum(self.distribution[15, :, : ,:]),
+                       range = (0, y_max),
+                       bins = bins)
+        ax1[0, 1].set_title('income, age 40')
+        ax1[0, 2].hist(x = self.income_array[35, :, : ,:].flatten(),
+                       weights = self.distribution[35, :, : ,:].flatten()/np.sum(self.distribution[35, :, : ,:]),
+                       range = (0, y_max),
+                       bins = bins)
+        ax1[0, 2].set_title('income, age 60')
+        ax1[1, 0].hist(x = self.a_prime[ 0, :, : ,:].flatten(),
+                       weights = self.distribution[ 0, :, : ,:].flatten()/np.sum(self.distribution[ 0, :, : ,:]),
+                       range = (self.a_grid[0], a_max),
+                       bins = bins)
+        ax1[1, 0].set_title('asset, age 25')
+        ax1[1, 1].hist(x = self.a_prime[15, :, : ,:].flatten(),
+                       weights = self.distribution[15, :, : ,:].flatten()/np.sum(self.distribution[15, :, : ,:]),
+                       range = (self.a_grid[0], a_max),
+                       bins = bins)
+        ax1[1, 1].set_title('asset, age 40')
+        ax1[1, 2].hist(x = self.a_prime[35, :, : ,:].flatten(),
+                       weights = self.distribution[35, :, : ,:].flatten()/np.sum(self.distribution[35, :, : ,:]),
+                       range = (self.a_grid[0], a_max),
+                       bins = bins)
+        ax1[1, 1].set_title('asset, age 60')
+        plt.savefig(fnames[0], dpi = 150, bbox_inches='tight', pad_inches=0)
         
-        self.make_income_array()
-        
-        # Prepare data for figures 1 and 2
-        fig1_data1   = self.income_array[ 0, :, : ,:].flatten()
-        fig1_data2   = self.income_array[15, :, : ,:].flatten()
-        fig1_data3   = self.income_array[35, :, : ,:].flatten()
-        fig2_data1   = self.a_prime[ 0, :, : ,:].flatten()
-        fig2_data2   = self.a_prime[15, :, : ,:].flatten()
-        fig2_data3   = self.a_prime[35, :, : ,:].flatten()
-        fig12_weight1 = self.distribution[ 0, :, : ,:].flatten()
-        fig12_weight2 = self.distribution[15, :, : ,:].flatten()
-        fig12_weight3 = self.distribution[35, :, : ,:].flatten()
-        
-        hist11, bins1 = np.histogram(a = fig1_data1,
-                                     weights = fig12_weight1)
-        hist12, _     = np.histogram(a = fig1_data2,
-                                     bins = bins1,
-                                     weights = fig12_weight2)
-        hist13, _     = np.histogram(a = fig1_data3,
-                                     bins = bins1,
-                                     weights = fig12_weight3)
-        hist21, bins2 = np.histogram(a = fig2_data1,
-                                     weights = fig12_weight1)
-        hist22, _     = np.histogram(a = fig2_data2,
-                                     bins = bins2,
-                                     weights = fig12_weight2)
-        hist23, _     = np.histogram(a = fig2_data3,
-                                     bins = bins2,
-                                     weights = fig12_weight3)
-        
-        # Prepare data for figures 3 and 4
-        fig3_data    = self.income_array[ :, :, : ,:].flatten()
-        fig4_data    = self.a_prime[ :, :, : ,:].flatten()
-        fig34_weight = self.distribution[ :, :, : ,:].flatten()
-        hist3, bins3 = np.histogram(a = fig3_data,
-                                     weights = fig34_weight)
-        hist4, bins4 = np.histogram(a = fig4_data,
-                                     weights = fig34_weight)
-
-
-        fig1, ax1 = plt.subplots(2, 1,  figsize=(12, 8))
-        ax1[0].hist(hist11, bins1,
-                    label = 'Age: 25')
-        ax1[0].hist(hist12, bins1,
-                    label = 'Age: 40')
-        ax1[0].hist(hist13, bins1,
-                    label = 'Age: 60')
-        ax1[0].set_xlabel('income')
-        ax1[0].legend(frameon=False)
-        ax1[1].hist(hist21, bins2,
-                    label = 'Age: 25')
-        ax1[1].hist(hist22, bins2,
-                    label = 'Age: 40')
-        ax1[1].hist(hist23, bins2,
-                    label = 'Age: 60')
-        ax1[1].set_xlabel('asset')
-        ax1[1].legend(frameon=False)
-        plt.savefig('Q2(a)1.png', dpi = 150, bbox_inches='tight', pad_inches=0)
-        
+        # **************
         fig2, ax2 = plt.subplots(2, 1,  figsize=(12, 8))
-        ax2[0].hist(hist3, bins3)
-        ax2[0].set_xlabel('income')
-        ax2[0].legend(frameon=False)
-        ax2[1].hist(hist4, bins4)
-        ax2[1].set_xlabel('asset')
-        ax2[1].legend(frameon=False)
-        plt.savefig('Q2(a)2.png', dpi = 150, bbox_inches='tight', pad_inches=0)
+        ax2[0].hist(x = self.income_array.flatten(),
+                       weights = self.distribution.flatten(),
+                       range = (0, y_max),
+                       bins = bins)
+        ax2[0].set_title('income, all ages')
+        ax2[1].hist(x = self.a_prime.flatten(),
+                       weights = self.distribution.flatten(),
+                       range = (self.a_grid[0], a_max),
+                       bins = bins)
+        ax2[1].set_title('asset, all ages')
+        plt.savefig(fnames[1], dpi = 150, bbox_inches='tight', pad_inches=0)
+        
+    def solve_question_2b(self, is_quiet = False):
+        self.calc_aggregate_asset()
+        if not is_quiet:
+            print("The aggregate stock of assets:")
+            print("       A({0}) = {1}".format(self.R, self.aggregate_asset))
+
         
 # ======== The following functions are used to compare multiple instances ==========
 def draw_graph_for_question_1d(benchmark, alt_spec):
@@ -676,33 +676,149 @@ def draw_graph_for_question_1d(benchmark, alt_spec):
     fig, ax = plt.subplots(2, 1,  figsize=(12, 8))
     x_label = benchmark.age_vec
     ax[0].plot(x_label, benchmark.c_path_mean,
-                c = 'green', lw = 1.5, label = 'c: benchmark')
+                c = 'green', lw = 1.5, label = '$c$')
     ax[0].plot(x_label, benchmark.a_prime_path_mean,
-                c = 'red',lw = 1.5, label = "$a'$: benchmark")
+                c = 'red',lw = 1.5, label = "$a'$")
     ax[0].plot(x_label, benchmark.Y_path_mean,
-                c = 'blue',lw = 1.5, label = 'Y: benchmark')
+                c = 'blue',lw = 1.5, label = '$Y$')
     ax[0].plot(x_label, alt_spec.c_path_mean,
-                c = 'green', lw = 1.5, ls = 'dashed',
-                label = 'c: alternative spec')
+                c = 'green', lw = 1.5, ls = 'dashed')
     ax[0].plot(x_label, alt_spec.a_prime_path_mean,
-                c = 'red', lw = 1.5, ls = 'dashed',
-                label = "$a'$: alternative spec")
+                c = 'red', lw = 1.5, ls = 'dashed')
     ax[0].plot(x_label, alt_spec.Y_path_mean,
-                c = 'blue', lw = 1.5, ls = 'dashed',
-                label = 'Y: alternative spec')
+                c = 'blue', lw = 1.5, ls = 'dashed')
     ax[0].set_xlabel("age")
     ax[0].legend(frameon=False)
     
     ax[1].plot(x_label, benchmark.lnc_var_path,
-                c = 'green', lw = 1.5, label = 'c: benchmark')
+                c = 'green', lw = 1.5, label = 'var(ln c)')
     ax[1].plot(x_label, benchmark.lnY_var_path,
-                c = 'blue', lw = 1.5, label = 'Y: benchmark')
+                c = 'blue', lw = 1.5, label = 'var(ln Y)')
     ax[1].plot(x_label, alt_spec.lnc_var_path,
-                c = 'green', lw = 1.5, ls = 'dashed',
-                label = 'c: alternative spec')
+                c = 'green', lw = 1.5, ls = 'dashed')
     ax[1].plot(x_label, alt_spec.lnY_var_path,
-                c = 'blue', lw = 1.5, ls = 'dashed',
-                label = 'Y: alternative spec')
+                c = 'blue', lw = 1.5, ls = 'dashed')
     ax[1].set_xlabel("age")
     ax[1].legend(frameon=False)
     plt.savefig('Q1(d).png', dpi = 150, bbox_inches='tight', pad_inches=0)
+    
+def solve_question_2d_for_ZBC(R_a, 
+                              R_b,
+                              tol_R = 1E-3, 
+                              tol_A = 0,
+                              max_iter = 50
+                              ):
+    model_a = KV2010(R = R_a)
+    model_a.discretize_z_process()
+    model_a.value_func_iter()
+    model_a.solve_for_distribution()
+    model_a.calc_aggregate_asset()
+
+    model_b = KV2010(R = R_b)
+    model_b.discretize_z_process()
+    model_b.value_func_iter()
+    model_b.solve_for_distribution()
+    model_b.calc_aggregate_asset()
+    
+    if (model_a.aggregate_asset > tol_A) & (model_b.aggregate_asset > tol_A):
+        raise Exception('Both R imply positive amount of aggregate asset.')
+    
+    if model_a.aggregate_asset > tol_A:
+        # Rename so that A(A_a) = 0 and A(A_b) > 0 
+        model_a, model_b = model_b, model_a
+        R_a, R_b = R_b, R_a
+    
+    # initialize while loop
+    iteration = 0
+    to_be_continued = True
+    
+    stopwatch = StopWatch()
+    while to_be_continued:
+        R_c = 0.5 * (R_a + R_b)
+        print('Iteration {0}: Solving the model with R = {1}...\n'.format(iteration+1, R_c))
+        model_c = KV2010(R = R_c)
+        model_c.discretize_z_process()
+        model_c.value_func_iter()
+        model_c.solve_for_distribution()
+        model_c.calc_aggregate_asset()
+        
+        if model_c.aggregate_asset > tol_A:
+            R_b = deepcopy(R_c)
+        if model_c.aggregate_asset <= tol_A:
+            if abs(R_a - R_b) <= tol_R:
+                to_be_continued = False
+            else:
+                R_a = deepcopy(R_c)
+        
+        iteration += 1
+        if iteration == max_iter:
+            to_be_continued = False
+    
+    stopwatch.stop()
+    print('Obtained R = {0}, which yields A(R) = {1}\n'.format(R_c, model_c.aggregate_asset))
+    return R_c, model_c.aggregate_asset
+
+def solve_question_2d_for_NBC(R_a, 
+                              R_b,
+                              a_LB,
+                              tol_R = 1E-3,
+                              tol_A = 1E-6, 
+                              max_iter = 50
+                              ):
+    model_a = KV2010(R = R_a,  a_lb = a_LB)
+    model_a.discretize_z_process()
+    model_a.value_func_iter()
+    model_a.solve_for_distribution()
+    model_a.calc_aggregate_asset()
+
+    model_b = KV2010(R = R_b,  a_lb = a_LB)
+    model_b.discretize_z_process()
+    model_b.value_func_iter()
+    model_b.solve_for_distribution()
+    model_b.calc_aggregate_asset()
+
+    if abs(model_a.aggregate_asset) < tol_A:
+        return R_a, model_a.aggregate_asset
+    
+    if abs(model_b.aggregate_asset) < tol_A:
+        return R_b, model_b.aggregate_asset
+
+    if model_a.aggregate_asset * model_b.aggregate_asset > 0:
+        raise Exception('The amount of aggregate asset for each R has the same sign.')
+    
+    if model_a.aggregate_asset > tol_A:
+        # Rename so that A(A_a) < 0 and A(A_b) > 0 
+        model_a, model_b = model_b, model_a
+        R_a, R_b = R_b, R_a
+    
+    # initialize while loop
+    iteration = 0
+    to_be_continued = True
+    
+    stopwatch = StopWatch()
+    while to_be_continued:
+        R_c = 0.5 * (R_a + R_b)
+        print('Iteration {0}: Solving the model with R = {1}...\n'.format(iteration+1, R_c))
+        model_c = KV2010(R = R_c, a_lb = a_LB)
+        model_c.discretize_z_process()
+        model_c.value_func_iter()
+        model_c.solve_for_distribution()
+        model_c.calc_aggregate_asset()
+        
+        if abs(model_c.aggregate_asset) < tol_A:
+            to_be_continued = False
+        else:
+            if abs(R_a - R_b) < tol_R:
+                to_be_continued = False
+            elif model_c.aggregate_asset < 0:
+                R_a = deepcopy(R_c)
+            else:
+                R_b = deepcopy(R_c)
+
+        iteration += 1
+        if iteration == max_iter:
+            to_be_continued = False
+    
+    stopwatch.stop()
+    print('Obtained R = {0}, which yields A(R) = {1}\n'.format(R_c, model_c.aggregate_asset))
+    return R_c, model_c.aggregate_asset
