@@ -521,7 +521,7 @@ class KV2010:
                         lw = 2.5, c = 'red',
                         label='{0} years old'.format(ages2plot[2]))
             ax[i].set_xlabel("$a$")
-            ax[i].set_title("$a'(a | z, \\varepsilon_L, age)$")
+            ax[i].set_title("$a'(a | z{0}, \\varepsilon_L, age)$".format([5, 10][i]))
             ax[i].legend(frameon=False)
         ax[2].plot(self.a_grid, self.a_grid,
                     lw = 0.75, c = 'black', label = '45 degree line')
@@ -532,7 +532,7 @@ class KV2010:
                         lw = 2.5, c = 'red',
                         label='\\varepsilon_H')
         ax[2].set_xlabel("$a$")
-        ax[2].set_title("$a'(a | z_{15}, \\varepsilon, 40)$")
+        ax[2].set_title("$a'(a | z15, \\varepsilon, 40)$")
         ax[2].legend(frameon=False)
         plt.savefig(fname, dpi = 150, bbox_inches='tight', pad_inches=0)
     

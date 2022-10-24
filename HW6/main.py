@@ -7,7 +7,7 @@ is main code for the assignment #6 of Quantitative Macroeconomic Theory
 at Washington University in St. Louis.
 
 Requirement:
-      mtQuantMacroHW5.py
+      mtQuantMacroHW6.py
 
 ..........................................................................
 Create Oct 19, 2022 (Masaki Tanaka, Washington University in St. Louis)
@@ -23,7 +23,6 @@ preferred_seed = 1234
 # =========================================================================
 # Load packages
 # =========================================================================
-from turtle import color
 from mtQuantMacro6 import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -89,7 +88,7 @@ print("\n",
       "\n **********************************",\
       )
 print("-------------------------------------------------")
-print("kaplan and Violante's (2010) insurance coeffcient")
+print("Kaplan and Violante's (2010) insurance coeffcient")
 print("-------------------------------------------------")
 print('   ZBC    : {0}'.format(benchmark.insurance_coef))
 print('   NBC    : {0}'.format(NBC.insurance_coef))
