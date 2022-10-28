@@ -377,7 +377,7 @@ class transition_dynamics:
                         age2plot = (25, 35),
                         z2plot   = (2, 6),
                         eps2plot = 3,
-                        fname = 'Q1b.png'):
+                        fname = 'Q1d.png'):
         # Find the indices to be plotted
         age_idx = [self.age_idx(age2plot[i]) for i in range(2)]
         z_idx   = [z2plot[i] - 1 for i in range(2)]
