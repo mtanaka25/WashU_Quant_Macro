@@ -1,0 +1,493 @@
+    63         2        145.0     72.5      0.0      print("\n",
+    64         1          1.0      1.0      0.0            "\n **********************************",\
+    65         1          0.0      0.0      0.0            "\n           Question 1 (d)          ",\
+    66         1          0.0      0.0      0.0            "\n **********************************",\
+    67                                                     )
+    68         1     596148.0 596148.0      0.1      model.solve_question_d()
+    69         1          1.0      1.0      0.0      return model
+
+Total time: 0.000171 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: __init__ at line 24
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    24                                               def __init__(self,
+    25                                                            sigma = 2.000, # inve
+    26                                                            r     = 0.030, # net risk-free interest rate,
+    27                                                            eta   = 0.250, # roll-over interest rate on delinquent debt
+    28                                                            beta  = 0.900, # discount factor
+    29                                                            gamma = 0.150, # discharge probability
+    30                                                            kappa = 0.050,
+    31                                                            tau   = 0.900, # earnings threshold in DQ
+    32                                                            f     = 0.060,
+    33                                                            alpha_a  =  0.0960,
+    34                                                            alpha_b  = -0.0022,
+    35                                                            z_vec = np.array([-0.1418, -0.0945, -0.0473, 0., 0.473, 0.0945, 0.1418]),
+    36                                                            # possible z
+    37                                                            pi_z = np.array([
+    38                                                                   [0.9868, 0.0132, 0.    , 0.    , 0.    , 0.    , 0.    ],
+    39                                                                   [0.0070, 0.9814, 0.0117, 0.    , 0.    , 0.    , 0.    ],
+    40                                                                   [0.    , 0.0080, 0.9817, 0.0103, 0.    , 0.    , 0.    ],
+    41                                                                   [0.    , 0.    , 0.0091, 0.9819, 0.0091, 0.    , 0.    ],
+    42                                                                   [0.    , 0.    , 0.    , 0.0103, 0.9817, 0.0080, 0.    ],
+    43                                                                   [0.    , 0.    , 0.    , 0.    , 0.0117, 0.9814, 0.0070],
+    44                                                                   [0.    , 0.    , 0.    , 0.    , 0.    , 0.0132, 0.9868]
+    45                                                               ]), # transition probability matrix of z
+    46                                                            eps_vec = np.array([-0.1000, -0.0500, 0.0000, 0.0500, 0.1000]),
+    47                                                            # possible epsilon
+    48                                                            pi_eps = np.array([0.0668, 0.2417, 0.3829, 0.2417, 0.0668]),
+    49                                                            # probability of epsilon
+    50                                                            a_min = -4.500, # lower bound of grid for a
+    51                                                            a_max =  4.500, # upper bound of grid for a
+    52                                                            N_a   = 1000,  # # of grid points
+    53                                                            age_range = (25, 82), # range of age
+    54                                                            retire_age = 65, # the last working age
+    55                                                            penalty = 1E-5 # penalty value for negative consumption
+    56                                                            ):
+    57                                                   # Make the grid for a
+    58         1        129.0    129.0     75.4          a_grid = np.linspace(a_min, a_max, N_a)
+    59         1         17.0     17.0      9.9          zero_a_idx = find_nearest_idx(0, a_grid)
+    60         1          2.0      2.0      1.2          a_grid[zero_a_idx] = 0 # ensure there is zero in the gird for a
+    61                                                   # Store the variables as the instance attributes
+    62         1          2.0      2.0      1.2          self.sigma, self.r, self.eta, self.beta = sigma, r, eta, beta
+    63         1          2.0      2.0      1.2          self.gamma, self.kappa, self.tau, self.f = gamma, kappa, tau, f
+    64         1          2.0      2.0      1.2          self.alpha_a, self.alpha_b = alpha_a, alpha_b
+    65         1          1.0      1.0      0.6          self.z_vec, self.pi_z, = z_vec, pi_z
+    66         1          2.0      2.0      1.2          self.eps_vec, self.pi_eps = eps_vec, pi_eps
+    67         1          0.0      0.0      0.0          self.a_grid = a_grid
+    68         1          2.0      2.0      1.2          self.N_z, self.N_eps, self.N_a = len(z_vec), len(eps_vec), N_a
+    69         1          2.0      2.0      1.2          self.N_age = age_range[1] - age_range[0] + 1
+    70         1          5.0      5.0      2.9          self.age_vec = np.arange(age_range[0], age_range[1]+1)
+    71         1          2.0      2.0      1.2          self.working_age_vec = np.arange(age_range[0], retire_age+1)
+    72         1          2.0      2.0      1.2          self.retire_age = retire_age
+    73         1          1.0      1.0      0.6          self.penalty = penalty
+
+Total time: 14.907 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: age_idx at line 75
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    75                                               def age_idx(self, age):
+    76  16240063    8856015.0      0.5     59.4          age_idx = age - self.age_vec[0]
+    77  16240063    6050936.0      0.4     40.6          return int(age_idx)
+
+Total time: 34.7842 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: fn at line 79
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    79                                               def fn(self, age):
+    80  11410000   15143806.0      1.3     43.5          base = 1 + self.alpha_a * self.age_idx(age) \
+    81   5705000   12917860.0      2.3     37.1                 + self.alpha_b * self.age_idx(age)**2
+    82   5705000    6722551.0      1.2     19.3          return np.log(base)
+
+Total time: 58.7084 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: y at line 84
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    84                                               def y(self, age, z, eps):
+    85                                                   # nested function to calculate after-retirement income
+    86   4865000    3086341.0      0.6      5.3          def pension(z):
+    87                                                       yR = 0.1 + 0.9 * np.exp(z)
+    88                                                       yR = np.max([yR, 1.2])
+    89                                                       return yR
+    90                                                   # Calculate income flow
+    91   4865000    3462393.0      0.7      5.9          if age <= self.retire_age:
+    92   4270000   41893408.0      9.8     71.4              income = np.exp(self.fn(age) + z + eps)
+    93                                                   else:
+    94    595000    7697821.0     12.9     13.1              income = pension(z)
+    95   4865000    2568452.0      0.5      4.4          return income
+
+Total time: 0.021565 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: E_G at line 97
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    97                                               def E_G(self, age, V, B, D):
+    98        58         47.0      0.8      0.2          if age > self.retire_age:
+    99        17          7.0      0.4      0.0              expected_G = V
+   100        41         23.0      0.6      0.1          elif age == self.retire_age:
+   101         1        310.0    310.0      1.4              exp_V_B = np.exp((V - B)/self.kappa)
+   102         1        270.0    270.0      1.3              expected_G = B + self.kappa * np.log(exp_V_B + 1)
+   103                                                   else:
+   104        40       6042.0    151.1     28.0              exp_V_D = np.exp((V - D)/self.kappa)
+   105        40       6132.0    153.3     28.4              exp_B_D = np.exp((B - D)/self.kappa)
+   106        40       8706.0    217.7     40.4              expected_G = D + self.kappa * np.log(exp_V_D + exp_B_D + 1)
+   107        58         28.0      0.5      0.1          return expected_G
+
+Total time: 0.014904 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: prob_each_option at line 109
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   109                                               def prob_each_option(self, age, V, B, D):
+   110        58         50.0      0.9      0.3          if age > self.retire_age:
+   111        17         16.0      0.9      0.1              prob_B, prob_V, prob_D = 0., 1., 0.
+   112        41         27.0      0.7      0.2          elif age == self.retire_age:
+   113         1        130.0    130.0      0.9              exp_V_B = np.exp((V - B)/self.kappa)
+   114         1          9.0      9.0      0.1              denominator = exp_V_B + 1
+   115         1         11.0     11.0      0.1              prob_B = 1 / denominator       # prob. of bankruptcy
+   116         1         73.0     73.0      0.5              prob_V = exp_V_B / denominator # prob. of repay
+   117         1          0.0      0.0      0.0              prob_D = 0                     # prob. of delinquency
+   118                                                   else:
+   119        40       5392.0    134.8     36.2              exp_V_D = np.exp((V - D)/self.kappa)
+   120        40       5806.0    145.2     39.0              exp_B_D = np.exp((B - D)/self.kappa)
+   121        40        820.0     20.5      5.5              denominator = exp_V_D + exp_B_D + 1
+   122        40        507.0     12.7      3.4              prob_B = exp_B_D / denominator # prob. of bankruptcy
+   123        40        720.0     18.0      4.8              prob_V = exp_V_D / denominator # prob. of repay
+   124        40       1299.0     32.5      8.7              prob_D = 1 / denominator       # prob. of delinquency
+   125        58         44.0      0.8      0.3          return prob_B, prob_V, prob_D
+
+Total time: 351.835 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: E_G_conditional_on_z at line 127
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   127                                               def E_G_conditional_on_z(self, age, z, E_G_prime):
+   128   4830000    3909685.0      0.8      1.1          if age < self.retire_age:
+   129   4200000    2672448.0      0.6      0.8              pi_z = self.pi_z
+   130                                                   else:
+   131    630000    3064416.0      4.9      0.9              pi_z = np.eye(self.N_z)
+   132                                                   # find the indices
+   133   4830000   12221117.0      2.5      3.5          age_idx = self.age_idx(age + 1)
+   134   4830000   20408459.0      4.2      5.8          z_idx  = find_nearest_idx(z, self.z_vec)
+   135                                                   # take the expectation with respect to epsilon
+   136   9660000  162098983.0     16.8     46.1          E_G_wrt_eps = np.sum(
+   137   4830000  119617235.0     24.8     34.0              [eps_i * E_G_prime[i, :, :] for i, eps_i in enumerate(self.eps_vec)],
+   138   4830000    2893056.0      0.6      0.8              axis = 0
+   139                                                       )
+   140                                                   # take the expectation with repect to z'
+   141   4830000   24949132.0      5.2      7.1          return pi_z[z_idx, :] @ E_G_wrt_eps
+
+Total time: 146.889 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: Bn at line 143
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   143                                               def Bn(self, age, z, eps, E_G_prime):
+   144   1400000    8796831.0      6.3      6.0          zero_asset_idx = find_nearest_idx(0, self.a_grid)
+   145                                                   # calculate utility flow
+   146   1400000   22354319.0     16.0     15.2          c = self.y(age, z, eps) - self.f
+   147   1400000    1360830.0      1.0      0.9          u = c**(1 - self.sigma)/(1 - self.sigma)
+   148                                                   # Calculate expected value conditional on z
+   149                                                   # Note that the individual cannot borrow when getting bankrupt
+   150   1400000  113317219.0     80.9     77.1          expected_G = (self.E_G_conditional_on_z(age, z, E_G_prime))[zero_asset_idx]
+   151   1400000    1059830.0      0.8      0.7          return u + self.beta * expected_G
+
+Total time: 197.707 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: Dn at line 153
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   153                                               def Dn(self, age, a, z, eps, E_G_prime):
+   154   1435000    9424688.0      6.6      4.8          zero_asset_idx = find_nearest_idx(0, self.a_grid)
+   155                                                   # calculate utility flow
+   156   1435000   33398531.0     23.3     16.9          c = max([self.y(age, z, eps), self.tau * self.fn(age)])
+   157   1435000    1660162.0      1.2      0.8          u = c**(1 - self.sigma)/(1 - self.sigma)
+   158                                                   # a' is given by (1 + eta)a
+   159   1435000    1021217.0      0.7      0.5          a_prime = (1 + self.eta) * a
+   160                                                   # Calculate expected value conditional on z
+   161   1435000  115505861.0     80.5     58.4          E_G_wrt_eps = self.E_G_conditional_on_z(age, z, E_G_prime)
+   162   1435000   31547075.0     22.0     16.0          EG_not_discharged = interp(self.a_grid, E_G_wrt_eps, a_prime)
+   163   1435000    1123205.0      0.8      0.6          EG_discharged = E_G_wrt_eps[zero_asset_idx]
+   164   1435000    3012541.0      2.1      1.5          expected_G = (1 - self.gamma) * EG_not_discharged + self.gamma * EG_discharged
+   165   1435000    1013398.0      0.7      0.5          return u + self.beta * expected_G
+
+Total time: 366.219 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: Vn at line 167
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   167                                               def Vn(self, age, a, z, eps, E_G_prime, q):
+   168                                                   # if the sample reaches the last age of life, the value of the state is
+   169                                                   # simply the instantaneous utility. And, in that case, the sample is
+   170                                                   # no longer allowrd to borrow.
+   171   2030000    1824639.0      0.9      0.5          if age == self.age_vec[-1]:
+   172     35000    1092513.0     31.2      0.3              V = self.utility(age, a = a, z = z, eps = eps, q = 0, a_prime = 0)
+   173     35000      21153.0      0.6      0.0              a_prime_star = 0
+   174                                                   else:
+   175   1995000    1597088.0      0.8      0.4              is_retired = (age > self.retire_age)
+   176   1995000    2332851.0      1.2      0.6              a_prime = (self.a_grid).reshape(1, -1)
+   177   3990000   87256189.0     21.9     23.8              utility = self.utility( age = age, a = a, z = z, eps = eps,
+   178   1995000    1205538.0      0.6      0.3                                      q = q, a_prime = a_prime, is_retired = is_retired)
+   179   1995000  174130369.0     87.3     47.5              possible_V = utility + self.beta * self.E_G_conditional_on_z(age, z, E_G_prime)
+   180                                                       # Take max
+   181   1995000   29951186.0     15.0      8.2              V = np.nanmax(possible_V)
+   182   1995000   63298156.0     31.7     17.3              a_prime_star_idx = np.nanargmax(possible_V)
+   183   1995000    2165217.0      1.1      0.6              a_prime_star = a_prime[0, a_prime_star_idx]
+   184   2030000    1343926.0      0.7      0.4          return V, a_prime_star
+
+Total time: 75.34 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: qn at line 186
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   186                                               def qn(self, age, z, a_prime, q_prime, prob_V, prob_D):
+   187    406000     395046.0      1.0      0.5          if age < self.retire_age:
+   188    280000     202192.0      0.7      0.3              pi_z = self.pi_z
+   189                                                   else:
+   190    126000     599223.0      4.8      0.8              pi_z = np.eye(self.N_z)
+   191                                                   # Pick up the indices
+   192    406000    2999649.0      7.4      4.0          a_prime_idx = find_nearest_idx(a_prime, self.a_grid)
+   193    406000    1650011.0      4.1      2.2          z_idx = find_nearest_idx(z, self.z_vec)
+   194                                                   # expected return: repay
+   195    406000     472963.0      1.2      0.6          contrib_V = prob_V[:, :, a_prime_idx]
+   196                                                   # expected return: delinquency
+   197    406000     383873.0      0.9      0.5          prob_D = prob_D[:, :, a_prime_idx]
+   198    812000   58228428.0     71.7     77.3          q_prime = np.array([
+   199    406000     359433.0      0.9      0.5              interp(self.a_grid, q_prime[i, :], a_prime) for i in range(self.N_z)
+   200                                                       ])
+   201    406000    5504642.0     13.6      7.3          q_prime = np.tile(q_prime, (self.N_eps, 1))
+   202    406000    1703043.0      4.2      2.3          contrib_D = prob_D * ( (1 - self.gamma) * (1 - self.eta) * q_prime)
+   203                                                   # Taking expectation with respect to epsion
+   204    406000    1443317.0      3.6      1.9          expected_returns = self.eps_vec @ (contrib_V + contrib_D)
+   205                                                   # calculate the asset price today
+   206    406000    1121421.0      2.8      1.5          q = pi_z[z_idx, :] @ expected_returns /(1 + self.r)
+   207    406000     276730.0      0.7      0.4          return q
+
+Total time: 70.1049 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: utility at line 209
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   209                                               def utility(self, age, a, z, eps, q, a_prime, is_retired = False):
+   210                                                   # income at the given age
+   211   2030000   33272147.0     16.4     47.5          income = self.y(age, z, eps)
+   212                                                   # Calculate consumption from the budget constraint
+   213   2030000   10528268.0      5.2     15.0          c = a + income - q * a_prime
+   214                                                   # If c is negstive, give a penalty
+   215   2030000    6136586.0      3.0      8.8          if (np.isscalar(c)):
+   216     35000      30232.0      0.9      0.0              if c <= 0:
+   217     12655       9097.0      0.7      0.0                  c = self.penalty
+   218                                                   else:
+   219   1995000    7352910.0      3.7     10.5              c[c <= 0] = self.penalty
+   220                                                   # During old ages, borrowing constaraint is imposed
+   221   2030000    1336845.0      0.7      1.9          if is_retired:
+   222    560000    1340726.0      2.4      1.9              if not (np.isscalar(c)):
+   223    560000    2071343.0      3.7      3.0                  c[a_prime < 0] = self.penalty
+   224                                                       elif a_prime < 0:
+   225                                                           c = self.penalty
+   226                                                   # Calculate the CES utility
+   227   2030000    7172970.0      3.5     10.2          u = c**(1-self.sigma) / (1-self.sigma)
+   228   2030000     853795.0      0.4      1.2          return u
+
+Total time: 843.014 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: value_func_iter at line 230
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   230                                               def value_func_iter(self):
+   231                                                   # Assign memory for arrays for values
+   232         1         16.0     16.0      0.0          B_n = np.zeros((self.N_eps, self.N_z, self.N_a))
+   233         1        148.0    148.0      0.0          D_n = np.zeros((self.N_eps, self.N_z, self.N_a))
+   234         1        105.0    105.0      0.0          V_n = np.zeros((self.N_eps, self.N_z, self.N_a))
+   235         1        105.0    105.0      0.0          a_prime_n = np.zeros((self.N_eps, self.N_z, self.N_a))
+   236                                                   # Prepare the terminal value of E_G' (The afterlife is supposed worthless.)
+   237         1         12.0     12.0      0.0          E_G_prime = np.zeros((self.N_eps, self.N_z, self.N_a))
+   238                                                   # Prepare 4D arrays where the matrices of G, a', q in each state will be stored
+   239         1       3282.0   3282.0      0.0          EG_4Darray      = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+   240         1       3081.0   3081.0      0.0          probB_4Darray   = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+   241         1       3386.0   3386.0      0.0          probV_4Darray   = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+   242         1       5924.0   5924.0      0.0          probD_4Darray   = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+   243         1       3513.0   3513.0      0.0          a_prime_4Darray = np.zeros((self.N_age, self.N_eps, self.N_z, self.N_a))
+   244         1        880.0    880.0      0.0          q_3Darray       = np.zeros((self.N_age, self.N_z, self.N_a))
+   245                                                   # start stop watch
+   246         1         22.0     22.0      0.0          stopwatch = StopWatch()
+   247         1        115.0    115.0      0.0          print('Solving backward the discretized model...\n')
+   248                                                   # Solve backward (with respect to age)
+   249        59        105.0      1.8      0.0          for age in reversed(self.age_vec):
+   250        58        291.0      5.0      0.0              age_idx = self.age_idx(age)
+   251                                                       # calculate the values and the optimal b' for each epsilon, z and a
+   252       348        580.0      1.7      0.0              for eps_idx, eps in enumerate(self.eps_vec):
+   253      2320       3299.0      1.4      0.0                  for z_idx, z in enumerate(self.z_vec):
+   254   2032030    2454642.0      1.2      0.3                      for a_idx, a in enumerate(self.a_grid):
+   255   2030000    2750661.0      1.4      0.3                          if age < self.retire_age:
+   256   1400000  153220718.0    109.4     18.2                              B_n[eps_idx, z_idx, a_idx] = self.Bn(age, z, eps, E_G_prime)
+   257   2030000    2746253.0      1.4      0.3                          if age <= self.retire_age:
+   258   1435000  209080092.0    145.7     24.8                              D_n[eps_idx, z_idx, a_idx] = self.Dn(age, a, z, eps, E_G_prime)
+   259   2030000    3103096.0      1.5      0.4                          V_n[eps_idx, z_idx, a_idx], a_prime_n = \
+   260   2030000  388523280.0    191.4     46.1                              self.Vn(age, a, z, eps, E_G_prime, q_3Darray[age_idx, z_idx, :])
+   261                                                       # Store the oprimal a' when choosing to repay
+   262        58       3126.0     53.9      0.0              a_prime_4Darray[age_idx, :, :, :] = a_prime_n
+   263                                                       # Calculate and store the expected maximized value
+   264        58      25036.0    431.7      0.0              EG_4Darray[age_idx, :, :, :] = self.E_G(age, V_n, B_n, D_n)
+   265                                                       # Calculate and store probabilities of choosing each option
+   266        58       8515.0    146.8      0.0              probB_4Darray[age_idx, :, :], probV_4Darray[age_idx, :, :], probD_4Darray[age_idx, :, :] = \
+   267        58      15401.0    265.5      0.0                  self.prob_each_option(age, V_n, B_n, D_n)
+   268                                                       # Calculate and store the bond price in the previous period
+   269       116   81052714.0 698730.3      9.6              q_before = np.array([
+   270                                                           [self.qn(age, z_i, a_j, q_3Darray[age_idx, :, :], probV_4Darray[age_idx, :, :], probV_4Darray[age_idx, :, :])
+   271                                                           for a_j in self.a_grid]
+   272        58         68.0      1.2      0.0                  for z_i in self.z_vec
+   273                                                           ])
+   274        58       2316.0     39.9      0.0              q_3Darray[age_idx-1, :, :] = q_before
+   275                                                       # Use the calculated V as V' in the next loop
+   276        58       2120.0     36.6      0.0              E_G_prime = deepcopy(EG_4Darray[age_idx, :, :, :])
+   277        58        162.0      2.8      0.0              if age % 10 == 0:
+   278         6        884.0    147.3      0.0                  print(f'Age {age} done.')
+   279         1        238.0    238.0      0.0          stopwatch.stop()
+   280                                                   #Store the solution
+   281         1          9.0      9.0      0.0          self.EG_data = EG_4Darray
+   282         1          8.0      8.0      0.0          self.probB_data = probB_4Darray
+   283         1          1.0      1.0      0.0          self.probV_data = probV_4Darray
+   284         1          1.0      1.0      0.0          self.probD_data = probD_4Darray
+   285         1          5.0      5.0      0.0          self.a_prime_data = a_prime_4Darray
+   286         1          1.0      1.0      0.0          self.q_data = q_3Darray
+
+Total time: 861.573 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: solve_question_a at line 288
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   288                                               def solve_question_a(self,
+   289                                                                   age2plot = 66,
+   290                                                                   z2plot   = (2, 6),
+   291                                                                   eps2plot = 3,
+   292                                                                   fname = 'Q1a.png'):
+   293                                                   # Solve the model backward
+   294         1  860980621.0 860980621.0     99.9          self.value_func_iter()
+   295                                                   # Find the indices to be plotted
+   296         1          6.0      6.0      0.0          age_idx = self.age_idx(age2plot)
+   297         1          5.0      5.0      0.0          z_idx   = [z2plot[i] - 1 for i in range(2)]
+   298         1          1.0      1.0      0.0          eps_idx = eps2plot - 1
+   299                                                   #Graph for Q1(a)
+   300         1      50782.0  50782.0      0.0          fig, ax = plt.subplots(2, 1, figsize=(8, 12))
+   301                                                   # --- Plot policy function
+   302         2       1161.0    580.5      0.0          ax[0].plot(self.a_grid, self.a_grid,
+   303         1          1.0      1.0      0.0                      lw = 0.75, c = 'black', ls = 'dotted', label = '45 degree line')
+   304         2        678.0    339.0      0.0          ax[0].plot(self.a_grid, self.a_prime_data[age_idx, eps_idx, z_idx[0], :],
+   305         1          4.0      4.0      0.0                      lw = 1.5, c = 'blue', label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   306         2        656.0    328.0      0.0          ax[0].plot(self.a_grid, self.a_prime_data[age_idx, eps_idx, z_idx[1], :],
+   307         1          2.0      2.0      0.0                      lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   308         1         69.0     69.0      0.0          ax[0].set_ylabel("$a'$")
+   309         1         58.0     58.0      0.0          ax[0].set_xlabel("$a$")
+   310         1       4201.0   4201.0      0.0          ax[0].legend(frameon=False)
+   311                                                   # --- Plot value function
+   312         2        701.0    350.5      0.0          ax[1].plot(self.a_grid, self.EG_data[age_idx, eps_idx, z_idx[0], :],
+   313         1          2.0      2.0      0.0                      lw = 1.5, c = 'blue',label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   314         2        644.0    322.0      0.0          ax[1].plot(self.a_grid, self.EG_data[age_idx, eps_idx, z_idx[1], :],
+   315         1          2.0      2.0      0.0                      lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   316         1         63.0     63.0      0.0          ax[1].set_ylabel("$V_{"+f"{age2plot}"+"}$")
+   317         1         56.0     56.0      0.0          ax[1].set_xlabel("$a$")
+   318         1       2447.0   2447.0      0.0          ax[1].legend(frameon=False)
+   319         1     531309.0 531309.0      0.1          plt.savefig(fname, dpi = 100, bbox_inches='tight', pad_inches=0)
+
+Total time: 0.591795 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: solve_question_b at line 321
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   321                                               def solve_question_b(self,
+   322                                                                   age2plot = 65,
+   323                                                                   z2plot   = (2, 6),
+   324                                                                   eps2plot = 3,
+   325                                                                   fname = 'Q1b.png'):
+   326                                                   # Find the indices to be plotted
+   327         1          6.0      6.0      0.0          age_idx = self.age_idx(age2plot)
+   328         1          5.0      5.0      0.0          z_idx   = [z2plot[i] - 1 for i in range(2)]
+   329         1          1.0      1.0      0.0          eps_idx = eps2plot - 1
+   330                                                   # Graph for Q1(b)
+   331         1      44861.0  44861.0      7.6          fig, ax = plt.subplots(2, 1, figsize=(8, 12))
+   332                                                   # --- Plot Policy function
+   333         2        697.0    348.5      0.1          ax[0].plot(self.a_grid, self.a_grid,
+   334         1          1.0      1.0      0.0                      lw = 0.75, c = 'black', ls = 'dotted', label = '45 degree line')
+   335         2        671.0    335.5      0.1          ax[0].plot(self.a_grid, self.a_prime_data[age_idx, eps_idx, z_idx[0], :],
+   336         1          3.0      3.0      0.0                      lw = 1.5, c = 'blue', label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   337         2        632.0    316.0      0.1          ax[0].plot(self.a_grid, self.a_prime_data[age_idx, eps_idx, z_idx[1], :],
+   338         1          2.0      2.0      0.0                      lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   339         1         65.0     65.0      0.0          ax[0].set_ylabel("$a'$")
+   340         1         56.0     56.0      0.0          ax[0].set_xlabel("$a$")
+   341         1       3256.0   3256.0      0.6          ax[0].legend(frameon=False)
+   342                                                   # --- Plot value function
+   343         2        701.0    350.5      0.1          ax[1].plot(self.a_grid, self.EG_data[age_idx, eps_idx, z_idx[0], :],
+   344         1          1.0      1.0      0.0                      lw = 1.5, c = 'blue', label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   345         2        945.0    472.5      0.2          ax[1].plot(self.a_grid, self.EG_data[age_idx, eps_idx, z_idx[1], :],
+   346         1          2.0      2.0      0.0                      lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   347         1         69.0     69.0      0.0          ax[1].set_ylabel("$V_{"+f"{age2plot}"+"}$")
+   348         1         57.0     57.0      0.0          ax[1].set_xlabel("$a$")
+   349         1       2452.0   2452.0      0.4          ax[1].legend(frameon=False)
+   350         1     537312.0 537312.0     90.8          plt.savefig(fname, dpi = 100, bbox_inches='tight', pad_inches=0)
+
+Total time: 0.346192 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: solve_question_c at line 352
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   352                                               def solve_question_c(self,
+   353                                                                   age2plot = 64,
+   354                                                                   z2plot   = (2, 6),
+   355                                                                   eps2plot = 3,
+   356                                                                   fname = 'Q1c.png'):
+   357                                                   # Find the age index to be plotted
+   358         1          5.0      5.0      0.0          age_idx = self.age_idx(age2plot)
+   359                                                   # Find a's indices over which a is negative
+   360         1         13.0     13.0      0.0          a_idx = find_nearest_idx(0, self.a_grid)
+   361         1          8.0      8.0      0.0          z_idx   = [z2plot[i] - 1 for i in range(2)]
+   362         1          1.0      1.0      0.0          eps_idx = eps2plot - 1
+   363                                                   # Graph for Q1(c)
+   364         1      21897.0  21897.0      6.3          fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+   365                                                   # --- Plot bond price
+   366         2        692.0    346.0      0.2          ax.plot(self.a_grid[:a_idx], self.q_data[age_idx, z_idx[0], :a_idx],
+   367         1          2.0      2.0      0.0                  lw = 1.5, c = 'blue', label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   368         2        698.0    349.0      0.2          ax.plot(self.a_grid[:a_idx], self.q_data[age_idx, z_idx[1], :a_idx],
+   369         1          1.0      1.0      0.0                  lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   370         1         66.0     66.0      0.0          ax.set_ylabel("$q$")
+   371         1         56.0     56.0      0.0          ax.set_xlabel("$a$")
+   372         1       2510.0   2510.0      0.7          ax.legend(frameon=False)
+   373         1     320243.0 320243.0     92.5          plt.savefig(fname, dpi = 100, bbox_inches='tight', pad_inches=0)
+
+Total time: 0.596099 s
+File: /Users/tanapanda/GitHub/WashU_Quant_Macro/HW7/mtQuantMacro7.py
+Function: solve_question_d at line 375
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   375                                               def solve_question_d(self,
+   376                                                                   age2plot = (25, 35),
+   377                                                                   z2plot   = (2, 6),
+   378                                                                   eps2plot = 3,
+   379                                                                   fname = 'Q1b.png'):
+   380                                                   # Find the indices to be plotted
+   381         1         14.0     14.0      0.0          age_idx = [self.age_idx(age2plot[i]) for i in range(2)]
+   382         1          3.0      3.0      0.0          z_idx   = [z2plot[i] - 1 for i in range(2)]
+   383         1          1.0      1.0      0.0          eps_idx = eps2plot - 1
+   384                                                   # Graph for Q1(b)
+   385         1      43250.0  43250.0      7.3          fig, ax = plt.subplots(2, 1, figsize=(8, 12))
+   386                                                   # --- Plot Policy function for age2plot[0]
+   387         2        705.0    352.5      0.1          ax[0].plot(self.a_grid, self.a_grid,
+   388         1          1.0      1.0      0.0                      lw = 0.75, c = 'black', ls = 'dotted', label = '45 degree line')
+   389         2        645.0    322.5      0.1          ax[0].plot(self.a_grid, self.a_prime_data[age_idx[0], eps_idx, z_idx[0], :],
+   390         1          2.0      2.0      0.0                      lw = 1.5, c = 'blue', label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   391         2        632.0    316.0      0.1          ax[0].plot(self.a_grid, self.a_prime_data[age_idx[0], eps_idx, z_idx[1], :],
+   392         1          2.0      2.0      0.0                      lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   393         1         63.0     63.0      0.0          ax[0].set_xlabel("$a$")
+   394         1        242.0    242.0      0.0          ax[0].set_title("$A_{"+f"{age2plot[0]}"+"}$")
+   395         1       3223.0   3223.0      0.5          ax[0].legend(frameon=False)
+   396                                                   # --- Plot Policy function for age2plot[1]
+   397         2        698.0    349.0      0.1          ax[1].plot(self.a_grid, self.a_grid,
+   398         1          1.0      1.0      0.0                      lw = 0.75, c = 'black', ls = 'dotted', label = '45 degree line')
+   399         2        668.0    334.0      0.1          ax[1].plot(self.a_grid, self.a_prime_data[age_idx[1], eps_idx, z_idx[0], :],
+   400         1          2.0      2.0      0.0                      lw = 1.5, c = 'blue', label='$z = z_{'+f'{z2plot[0]}'+'}$')
+   401         2        640.0    320.0      0.1          ax[1].plot(self.a_grid, self.a_prime_data[age_idx[1], eps_idx, z_idx[1], :],
+   402         1          2.0      2.0      0.0                      lw = 3, c = 'red', label='$z = z_{'+f'{z2plot[1]}'+'}$')
+   403         1         62.0     62.0      0.0          ax[1].set_xlabel("$a$")
+   404         1        227.0    227.0      0.0          ax[1].set_title("$A_{"+f"{age2plot[1]}"+"}$")
+   405         1       3156.0   3156.0      0.5          ax[1].legend(frameon=False)
+   406         1     541860.0 541860.0     90.9          plt.savefig(fname, dpi = 100, bbox_inches='tight', pad_inches=0)
