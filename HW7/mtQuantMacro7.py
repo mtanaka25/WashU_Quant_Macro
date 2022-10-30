@@ -50,7 +50,7 @@ class AMS2019:
                  # probability of epsilon
                  a_min = -0.800, # lower bound of grid for a
                  a_max =  4.000, # upper bound of grid for a
-                 N_a   = 150,  # # of grid points
+                 N_a   = 1000,  # # of grid points
                  age_range = (25, 82), # range of age
                  retire_age = 65, # the last working age
                  penalty = 1E-3 # penalty value for negative consumption
@@ -120,6 +120,8 @@ class AMS2019:
             exp_D_V[exp_D_V == np.inf] = 1E10
             exp_B_V[exp_B_V == np.inf] = 1E10
             expected_G = V + self.kappa * np.log(exp_D_V + exp_B_V + 1)
+        a0_idx = find_nearest_idx(0, self.a_grid)
+        expected_G[:, :, a0_idx: ] = V[:, :, a0_idx: ]
         return expected_G
     
     def prob_each_option(self, age, V, B, D):
@@ -132,6 +134,9 @@ class AMS2019:
             prob_B = exp_B_V / denominator       # prob. of bankruptcy
             prob_V = 1 / denominator # prob. of repay
             prob_D = 0                     # prob. of delinquency
+            a0_idx = find_nearest_idx(0, self.a_grid)
+            prob_B[:, :, a0_idx: ] = 0
+            prob_V[:, :, a0_idx: ] = 1
         else:
             exp_D_V = np.exp((D - V)/self.kappa)
             exp_B_V = np.exp((B - V)/self.kappa)
@@ -141,6 +146,10 @@ class AMS2019:
             prob_B = exp_B_V / denominator # prob. of bankruptcy
             prob_V = 1 / denominator # prob. of repay
             prob_D = exp_D_V / denominator       # prob. of delinquency
+            a0_idx = find_nearest_idx(0, self.a_grid)
+            prob_B[:, :, a0_idx: ] = 0
+            prob_V[:, :, a0_idx: ] = 1
+            prob_D[:, :, a0_idx: ] = 0
         return prob_B, prob_V, prob_D
     
     def E_G_conditional_on_z(self, age, z, E_G_prime):
@@ -439,15 +448,17 @@ class AMS2019:
         # mean debt/income ratio
         ay_ratio = - a_mat / y_mat
         ay_ratio_sum = np.nansum(is_indebt * ay_ratio, axis = 0)
+        aux_N_indebt = deepcopy(N_indebt)
+        aux_N_indebt[aux_N_indebt==0] = 1
         self.ay_ratio_ave = ay_ratio_sum / N_indebt
         # share of informal default HH
         is_choosing_D = (action_mat == 2)
-        N_D = np.nansum(is_indebt * is_choosing_D, axis = 0)
-        self.D_ratio = N_D / N_indebt
+        N_D = np.nansum(is_choosing_D, axis = 0)
+        self.D_ratio = N_D / N_samples
         # share of  HH
         is_choosing_B = (action_mat == 0)
-        N_B = np.nansum(is_indebt * is_choosing_B, axis = 0)
-        self.B_ratio = N_B / N_indebt
+        N_B = np.nansum(is_choosing_B, axis = 0)
+        self.B_ratio = N_B / N_samples
     
     def calc_gini_coeff(self):
         # consumption
@@ -455,17 +466,17 @@ class AMS2019:
         # income
         self.gini_coeff_y = self._gini_coeff_routine(self.y_path_mat)
         # asset
-        self.gini_coeff_a = self._gini_coeff_routine(self.a_prime_path_mat)
+        # self.gini_coeff_a = self._gini_coeff_routine(self.a_prime_path_mat)
     
     def _gini_coeff_routine(self, simulated_result):
         N_sample, N_periods = simulated_result.shape
         gini_vec = np.zeros((N_periods,))
         for i in range(N_periods):
-            simulated_result_i = simulated_result[i, :]
+            simulated_result_i = simulated_result[:, i]
             simulated_result_i = simulated_result_i[~np.isnan(simulated_result_i)]
-            weight_i = np.ones((len(simulated_result_i), ))
-            lorenz_i = lorenz_curve(simulated_result_i, weight_i)
-            gini_vec[i] = gini_index(lorenz_i)
+            simulated_result_i.sort()
+            weight_i = np.ones((len(simulated_result_i), )) / len(simulated_result_i)
+            gini_vec[i] = gini_index(simulated_result_i, weight_i)
         return gini_vec
     
     def solve_question_a(self,
@@ -621,8 +632,8 @@ class AMS2019:
                     lw = 1.5, c = 'green', ls = 'dashed', label = 'consuption')
         ax1[1].plot(self.age_vec, self.gini_coeff_y,
                     lw = 1.5, c = 'blue', label = 'income')
-        ax1[1].plot(self.age_vec, self.gini_coeff_a,
-                    lw = 3.0, c = 'red', label = 'savings')
+        #ax1[1].plot(self.age_vec, self.gini_coeff_a,
+        #            lw = 3.0, c = 'red', label = 'savings')
         ax1[1].set_xlabel("age")
         ax1[1].set_title("Gini coefficient")
         ax1[1].legend(frameon=False)
