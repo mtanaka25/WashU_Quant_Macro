@@ -19,7 +19,7 @@ from copy import deepcopy
 
 # Load the personal Python package, which is based on the assignments #1-#5.
 from mtPyTools import StopWatch, find_nearest_idx
-from mtPyEcon import lorenz_curve, gini_index
+from mtPyEcon import gini_index
 
 class AMS2019:
     def __init__(self,
@@ -120,8 +120,8 @@ class AMS2019:
             exp_D_V[exp_D_V == np.inf] = 1E10
             exp_B_V[exp_B_V == np.inf] = 1E10
             expected_G = V + self.kappa * np.log(exp_D_V + exp_B_V + 1)
-        a0_idx = find_nearest_idx(0, self.a_grid)
-        expected_G[:, :, a0_idx: ] = V[:, :, a0_idx: ]
+        # a0_idx = find_nearest_idx(0, self.a_grid)
+        # expected_G[:, :, a0_idx: ] = V[:, :, a0_idx: ]
         return expected_G
     
     def prob_each_option(self, age, V, B, D):
@@ -134,9 +134,9 @@ class AMS2019:
             prob_B = exp_B_V / denominator       # prob. of bankruptcy
             prob_V = 1 / denominator # prob. of repay
             prob_D = 0                     # prob. of delinquency
-            a0_idx = find_nearest_idx(0, self.a_grid)
-            prob_B[:, :, a0_idx: ] = 0
-            prob_V[:, :, a0_idx: ] = 1
+            # a0_idx = find_nearest_idx(0, self.a_grid)
+            # prob_B[:, :, a0_idx: ] = 0
+            # prob_V[:, :, a0_idx: ] = 1
         else:
             exp_D_V = np.exp((D - V)/self.kappa)
             exp_B_V = np.exp((B - V)/self.kappa)
@@ -146,10 +146,10 @@ class AMS2019:
             prob_B = exp_B_V / denominator # prob. of bankruptcy
             prob_V = 1 / denominator # prob. of repay
             prob_D = exp_D_V / denominator       # prob. of delinquency
-            a0_idx = find_nearest_idx(0, self.a_grid)
-            prob_B[:, :, a0_idx: ] = 0
-            prob_V[:, :, a0_idx: ] = 1
-            prob_D[:, :, a0_idx: ] = 0
+            # a0_idx = find_nearest_idx(0, self.a_grid)
+            # prob_B[:, :, a0_idx: ] = 0
+            # prob_V[:, :, a0_idx: ] = 1
+            # prob_D[:, :, a0_idx: ] = 0
         return prob_B, prob_V, prob_D
     
     def E_G_conditional_on_z(self, age, z, E_G_prime):
@@ -441,6 +441,8 @@ class AMS2019:
         self.y_ave = np.nanmean(y_mat, axis = 0)
         self.c_ave = np.nanmean(c_mat, axis = 0)
         self.a_ave = np.nanmean(a_mat, axis = 0)
+        # gini coefficients
+        self.calc_gini_coeff()
         # indebt household share
         is_indebt = (a_mat < 0)
         N_indebt = np.nansum(is_indebt, axis = 0)
@@ -450,7 +452,7 @@ class AMS2019:
         ay_ratio_sum = np.nansum(is_indebt * ay_ratio, axis = 0)
         aux_N_indebt = deepcopy(N_indebt)
         aux_N_indebt[aux_N_indebt==0] = 1
-        self.ay_ratio_ave = ay_ratio_sum / N_indebt
+        self.ay_ratio = ay_ratio_sum / aux_N_indebt
         # share of informal default HH
         is_choosing_D = (action_mat == 2)
         N_D = np.nansum(is_choosing_D, axis = 0)
@@ -460,7 +462,7 @@ class AMS2019:
         N_B = np.nansum(is_choosing_B, axis = 0)
         self.B_ratio = N_B / N_samples
     
-    def calc_gini_coeff(self):
+    def _calc_gini_coeff(self):
         # consumption
         self.gini_coeff_c = self._gini_coeff_routine(self.c_path_mat)
         # income
@@ -478,6 +480,40 @@ class AMS2019:
             weight_i = np.ones((len(simulated_result_i), )) / len(simulated_result_i)
             gini_vec[i] = gini_index(simulated_result_i, weight_i)
         return gini_vec
+    
+    def summarize_pooled_simulation_result(self):
+        # Prepare pooled data
+        retire_idx = self.age_idx(self.retire_age)
+        pooled_y = self.y_path_mat[:, :retire_idx+1].flatten()
+        pooled_c = self.c_path_mat[:, :retire_idx+1].flatten()
+        pooled_a = self.a_path_mat[:, :retire_idx+1].flatten()
+        pooled_action = self.action_path_mat[:, :retire_idx+1].flatten()
+        N_pooled = len(pooled_y) # # of pooled samples
+        # average c, y, a
+        self.y_ave_pooled = np.mean(pooled_y)
+        self.c_ave_pooled = np.mean(pooled_c)
+        self.a_ave_pooled = np.mean(pooled_a)
+        # gini coefficients
+        weight = np.ones((N_pooled,)) / N_pooled
+        self.gini_coeff_y_pooled = gini_index(pooled_y, weight)
+        self.gini_coeff_c_pooled = gini_index(pooled_c, weight)
+        # indebt household share
+        is_indebt = (pooled_a < 0)
+        N_indebt = np.sum(is_indebt)
+        self.indebt_ratio_pooled = N_indebt/N_pooled
+        # mean debt/income ratio
+        ay_ratio = - pooled_a / pooled_y
+        ay_ratio_sum = np.sum(is_indebt * ay_ratio)
+        self.ay_ratio_pooled = ay_ratio_sum / N_indebt
+        # share of informal default HH
+        is_choosing_D = (pooled_action == 2)
+        N_D = np.sum(is_choosing_D)
+        self.D_ratio_pooled = N_D / N_pooled
+        # share of  HH
+        is_choosing_B = (pooled_action == 0)
+        N_B = np.sum(is_choosing_B)
+        self.B_ratio_pooled = N_B / N_pooled
+
     
     def solve_question_a(self,
                         age2plot = 66,
@@ -613,11 +649,10 @@ class AMS2019:
         self.monte_carlo_simulation(init_a, init_z_idx, init_eps_idx, N_samples)
         # Get the statistics
         self.summarize_simulation_result()
-        self.calc_gini_coeff()
-        
+
         # Graphics
         # (1) averages
-        fig1, ax1 = plt.subplots(3, 1, figsize=(8, 18))
+        fig1, ax1 = plt.subplots(3, 1, figsize=(8, 12))
         ax1[0].plot(self.age_vec, self.c_ave,
                     lw = 1.5, c = 'green', ls = 'dashed', label = 'consuption')
         ax1[0].plot(self.age_vec, self.y_ave,
@@ -645,8 +680,8 @@ class AMS2019:
         plt.savefig(fnames[0], dpi = 100, bbox_inches='tight', pad_inches=0)
         
         # (1) averages
-        fig2, ax2 = plt.subplots(3, 1, figsize=(8, 18))
-        ax2[0].plot(self.age_vec, self.ay_ratio_ave,
+        fig2, ax2 = plt.subplots(3, 1, figsize=(8, 12))
+        ax2[0].plot(self.age_vec, self.ay_ratio,
                     lw = 3.0, c = 'red')
         ax2[0].set_xlabel("age")
         ax2[0].set_title("Average debt/income ratio")
@@ -661,6 +696,34 @@ class AMS2019:
         ax2[2].set_xlabel("age")
         ax2[2].set_title("Share of those choose B")
         plt.savefig(fnames[1], dpi = 100, bbox_inches='tight', pad_inches=0)
+        
+    
+    def solve_question_f(self):
+        # Calculate the statistics for the pooled samples
+        self.summarize_pooled_simulation_result()
+        # Print the result
+        print('-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+')   
+        print('Statistics for the pooled samples')
+        print('-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+')        
+        print(f'Average consumption   :   {self.c_ave_pooled}')
+        print(f'Average income        :   {self.y_ave_pooled}')
+        print(f'Average asset holdings:   {self.a_ave_pooled}')
+        print('')
+        print(f'Gini coeficient for consumption:   {self.gini_coeff_c_pooled}')
+        print(f'Gini coeficient for income     :   {self.gini_coeff_y_pooled}')
+        print('')
+        print(f'Share of indebt housheold:   {self.indeb_ratio_pooled}')
+        print('')
+        print(f'Average debt/income ratio:   {self.ay_ratio_pooled}')       
+        print('')
+        print(f'Share of those chooging D:   {self.D_ratio_pooled}')
+        print(f'Share of those chooging B:   {self.B_ratio_pooled}\n')
+        
+        
+    def solve_question_g(self):
+        pass
+        
+        
         
 def interp(x, y, x_hat):
     N = len(x)

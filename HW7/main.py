@@ -17,14 +17,13 @@ Create Oct 25, 2022 (Masaki Tanaka, Washington University in St. Louis)
 # =========================================================================
 # Settings
 # =========================================================================
+preferred_seed = 1234
+
 # =========================================================================
 # Load packages
 # =========================================================================
-from mtQuantMacro7 import *
-# from line_profiler import LineProfiler
+from mtQuantMacro7 import AMS2019
 
-
-# def main():
 # =========================================================================
 # Question 1 (a).
 # =========================================================================
@@ -66,8 +65,6 @@ print("\n",
       )
 benchmark.solve_question_d()
 
-
-
 # =========================================================================
 # Question 1 (e).
 # =========================================================================
@@ -76,14 +73,14 @@ print("\n",
       "\n           Question 1 (e)          ",\
       "\n **********************************",\
       )
-benchmark.solve_question_e(seed2use=1234)
-#     return model
+benchmark.solve_question_e(seed2use=preferred_seed)
 
-
-# profiler = LineProfiler()
-# profiler.add_module(transition_dynamics)
-# profiler.add_function(main)
-
-# profiler.runcall(main)
-
-# profiler.print_stats()
+# =========================================================================
+# Question 1 (f).
+# =========================================================================
+print("\n",
+      "\n **********************************",\
+      "\n           Question 1 (f)          ",\
+      "\n **********************************",\
+      )
+benchmark.solve_question_f()
