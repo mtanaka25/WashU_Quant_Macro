@@ -29,6 +29,7 @@ After finishing `HW5`, I cut out several routines which are often used in the as
 ## Cautions
 In `HW4`, we were asked to implement the policy iteration based on the Euler equation and the endogenous grid point method (see [Carroll [2006, *Econ. Lett.*]](https://doi.org/10.1016/j.econlet.2005.09.013) for the EGP method). Although I finished writing scripts that looked to work well, however, I failed to get reasonable solutions. So, please doublecheck if these codes are correct when you reuse them.
 
+In `HW7`, we were asked to solve a variant of [Athreya, Mustre-del-Rio, and Sanchez [2019, *Rev. Financ. Stud.*]](https://academic.oup.com/rfs/article/32/10/3851/5305595) model. However, due to the time constraint, I could not affort to reach the fully reasonable ansewrs. In particular, the statistics for the whole working-age population are not consistent with age-by-age statistics. I would fix it if I have time to do so. In the meantime, please carefully doublecheck the codes if you reuse them.
 
 ## Disclaimer
 This is my own programs used for my homework. Thus, it is not guaranteed that these codes are correct and what the lecturer expected. 
