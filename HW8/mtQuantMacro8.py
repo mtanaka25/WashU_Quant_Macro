@@ -69,13 +69,13 @@ class TwoPeriodKrusellSmith:
         lhs = self.muc(k = k1, k_next = k2, eps = self.eps1, K = self.K1)
         # Right-hand side of the Euler equation
         possible_muc = self.muc(k = k2, k_next = 0, eps = self.eps2_vec, K = K2)
-        rhs = self.beta * np.nanmean(possible_muc)
+        rhs = self.beta * self.r(K2) * np.nanmean(possible_muc)
         # return the residual
         return lhs - rhs
     
     def solve_EE_under_guessed_K2(self,
                                   K2_guess,
-                                  tol = 1E-10,
+                                  tol = 1E-5,
                                   maxiter = 1_000):
         r1, w1 = self.r(self.K1), self.w(self.K1)
         r2, w2 = self.r(K2_guess), self.w(K2_guess)
@@ -105,8 +105,8 @@ class TwoPeriodKrusellSmith:
     
     def solve_for_K2_and_its_distribution(self,
                                           K2_init,
-                                          tol_for_K2 = 1E-10,
-                                          tol_for_bisec = 1E-10,
+                                          tol_for_K2 = 1E-5,
+                                          tol_for_bisec = 1E-5,
                                           maxiter_for_K2 = 1000,
                                           maxiter_for_bisec = 1000
                                           ):
@@ -177,8 +177,8 @@ class TwoPeriodKrusellSmith:
         
     def solve_question_d(self,
                          K2_guess,
-                         tol_for_K2 = 1E-10,
-                         tol_for_bisec = 1E-10,
+                         tol_for_K2 = 1E-5,
+                         tol_for_bisec = 1E-5,
                          maxiter_for_K2 = 1000,
                          maxiter_for_bisec = 1000,
                          fname = 'Qd.png'):
@@ -196,13 +196,12 @@ class TwoPeriodKrusellSmith:
         ax.set_ylabel('$k_{i, 2}$')
         plt.savefig(fname, dpi = 100, bbox_inches='tight', pad_inches=0)
 
-def compare_interest_rates(model_S, model_M, model_L, fname='Qe.png'):
+def compare_interest_rates(model_S, model_M, model_L, fname='Qe.png', y_range = 0.002):
     r_data = [model_S.r(model_S.K2),
               model_M.r(model_M.K2),
               model_L.r(model_L.K2)]
-    y_max, y_min = max(r_data), min(r_data)
-    diff = y_max - y_min
-    y_max, y_min = y_max+0.5*diff, y_min-0.5*diff
+    y_med = np.median(r_data)
+    y_max, y_min = y_med + y_range/2, y_med - y_range/2
     # Graphics
     fig, ax = plt.subplots(1, 1, figsize = (8, 6))
     x_label = [f'(1/12)(0.{n+1}$)^2$' for n in range(3)]
@@ -219,7 +218,9 @@ def reference_figure(volkL_voleH, # var(k1): low , var(eps2): high
                      volkM_voleL, # var(k1): mid , var(eps2): low
                      volkH_voleL  # var(k1): high, var(eps2): low
                      ):
-    x_data   = volkL_voleH.k1_vec
+    x_dataL  = volkL_voleH.k1_vec
+    x_dataM  = volkM_voleH.k1_vec
+    x_dataH  = volkH_voleH.k1_vec
     y_dataLH = volkL_voleH.k2_vec
     y_dataMH = volkM_voleH.k2_vec
     y_dataHH = volkH_voleH.k2_vec
@@ -228,18 +229,18 @@ def reference_figure(volkL_voleH, # var(k1): low , var(eps2): high
     y_dataHL = volkH_voleL.k2_vec
     # Graphics
     fig, ax = plt.subplots(1, 1, figsize = (8, 6))
-    ax.plot(x_data, y_dataLH,
-            c = 'red',    label = 'var($k_1$):L, var($\\varepsilon_2$):H')
-    ax.plot(x_data, y_dataMH,
-            c = 'orange', label = 'var($k_1$):M, var($\\varepsilon_2$):H')
-    ax.plot(x_data, y_dataHH,
-            c = 'yellow', label = 'var($k_1$):H, var($\\varepsilon_2$):H')
-    ax.plot(x_data, y_dataLL,
-            c = 'green',  label = 'var($k_1$):L, var($\\varepsilon_2$):L')
-    ax.plot(x_data, y_dataML,
-            c = 'blue',   label = 'var($k_1$):M, var($\\varepsilon_2$):L')
-    ax.plot(x_data, y_dataHL,
-            c = 'purple', label = 'var($k_1$):H, var($\\varepsilon_2$):L')
+    ax.plot(x_dataL, y_dataLH,
+            c = 'yellow', lw = 4, label = 'var($k_1$):L, var($\\varepsilon_2$):H')
+    ax.plot(x_dataM, y_dataMH,
+            c = 'orange', lw = 2.5, label = 'var($k_1$):M, var($\\varepsilon_2$):H')
+    ax.plot(x_dataH, y_dataHH,
+            c = 'red', lw = 1, ls = 'dashed', label = 'var($k_1$):H, var($\\varepsilon_2$):H')
+    ax.plot(x_dataL, y_dataLL,
+            c = 'gray', lw = 4, label = 'var($k_1$):L, var($\\varepsilon_2$):L')
+    ax.plot(x_dataM, y_dataML,
+            c = 'green', lw = 2.5, label = 'var($k_1$):M, var($\\varepsilon_2$):L')
+    ax.plot(x_dataH, y_dataHL,
+            c = 'blue', lw = 1, ls = 'dashed', label = 'var($k_1$):H, var($\\varepsilon_2$):L')
     ax.set_xlabel('$k_{i, 1}$')
     ax.set_ylabel('$k_{i, 2}$')
     ax.legend(frameon = False)
