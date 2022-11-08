@@ -4,23 +4,18 @@ These codes are for the assignments of Economics 5725 (Quantitative Macroeconomi
 
 ## About Economics 5725
 
-Economics 5725 is a PhD lecture taught by Juan M. Sanchez (Federal Reserve Bank of St. Louis).
+Economics 5725 is a PhD-level lecture taught by Juan M. Sanchez (Federal Reserve Bank of St. Louis).
 
-The goals of this course are (1) to introduce the basics tools of modern quantitative macroeconomics, and (2) to help us to start working on quantitative macro.
-In the course, we are expected to implement models with rich
-heterogeneity across agents and firms, aggregate fluctuations, and transitional dynamics.
-For the detail of the course, see the syllabus available on [Juan's personal website](https://sites.google.com/view/juanmsanchezweb).
+The goals of this course were (1) to introduce the basics tools of modern quantitative macroeconomics, and (2) to help us to start working on quantitative macro. We were expected to implement models with rich heterogeneity across agents and firms, aggregate fluctuations, and transitional dynamics. For the detail of the course, see the syllabus available on [Juan's personal website](https://sites.google.com/view/juanmsanchezweb).
 
-Because the PDFs of the homework assignments are copyrighted by the instructor, I will not share them. The only things I will upload here are the codes I write for my own solutions.
+In Economics 5725, we were required to work on nine assignments. The programs here are what I prepared for these assignemnts. Note that because the PDFs of the homework assignments are copyrighted by the instructor, I do not share them. The only things I upload here are the codes I wrote for my own solutions.
 
 
 ## Programming language
- I basically use Python, which is recommended by the lecturer. While I have not done so for now, however, I might occasionally use MATLAB when I think it is more suited. 
-
+I used Python, which was recommended by the lecturer.
 
 ## Requirements
-I use the latest version of Python and its basic packages (e.g. numpy). I write the scripts with the latest version of Visual Studio Code and run them on the latest Mac OS's Terminal.
-Note that, in case I would write MATLAB codes, I would use R2022b.
+I used the latest version (at the time I wrote) of Python and its basic packages (e.g. numpy). I wrote the scripts with Visual Studio Code (version 1.73.0) and run them on Terminal of macOS Ventura 13.0.
 
 In the codes in `HW1` and `HW2`, I use `freadapi` and `statsmodels` packages, which are not included in standard collections of Python packages. To use `freadapi`, you need to apply a API key to St. Louis Fed. The application is accepted online for free. 
 
