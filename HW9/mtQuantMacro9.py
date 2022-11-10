@@ -244,11 +244,12 @@ class Hopenhayn1992:
             value of entry
         """
         # solve for the stationary V
-        V, _, _ = self.value_func_iter(p, w, max_iter, tol)
+        V_prime, _, _ = self.value_func_iter(p, w, max_iter, tol)
         # expected value after entry
-        EV = max([self.G.reshape(1, -1) @ V, 0])
+        VV_prime = V_prime + self.kappa * np.log(1 + np.exp(- V_prime / self.kappa))
+        EVV = self.trans_mat @ VV_prime
         # value of entry
-        return -self.ce + self.beta * EV
+        return -self.ce + self.beta * EVV
     
     def solve_for_p_star(self,
                          p_a  = 0.25,
