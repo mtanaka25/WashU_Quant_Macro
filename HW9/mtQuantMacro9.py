@@ -247,7 +247,7 @@ class Hopenhayn1992:
         V_prime, _, _ = self.value_func_iter(p, w, max_iter, tol)
         # expected value after entry
         VV_prime = V_prime + self.kappa * np.log(1 + np.exp(- V_prime / self.kappa))
-        EVV = self.trans_mat @ VV_prime
+        EVV = self.G.reshape(1, -1) @ VV_prime
         # value of entry
         return -self.ce + self.beta * EVV
     
