@@ -23,7 +23,7 @@ from numpy import linspace
 # =========================================================================
 p_init = 1.0
 m_init = 0.25
-ce_list = linspace(20, 60, 5)
+ce_list = linspace(20, 60, 21)
 
 z_process = Quasi_Tauchen()
 trans_mat = z_process(write_out=True)
