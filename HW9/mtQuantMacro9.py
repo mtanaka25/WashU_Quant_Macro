@@ -21,7 +21,7 @@ from scipy.optimize import bisect
 # Load the personal Python package, which is based on the assignments #1-#7.
 from mtPyTools import StopWatch
 from mtPyEcon import lorenz_curve
-def_tol = 1E-5
+def_tol = 1E-8
 def_max_iter = 1000
 
 class Quasi_Tauchen:
@@ -318,6 +318,8 @@ class Hopenhayn1992:
                     m_init = 0.25,
                     max_iter = def_max_iter,
                     tol = def_tol):
+        # calculate the aggregate demand
+        D = self.b / self.p_star
         # calculate the stationary distribution under m_init
         dist_init = self.solve_for_stationary_dist(m = m_init,
                                                    max_iter = max_iter,
@@ -327,11 +329,9 @@ class Hopenhayn1992:
         # calculate the aggregate supply
         Y = y_vec @ ((1 - self.x_star)*dist_init)
         Y = Y.item()  # just transform from numpy scalar to python scalar
-        # calculate the aggregate demand
-        D = self.b / self.p_star
         # adjust m and distribution so that supply and demand are balanced
         m_star = m_init * D / Y
-        dist_star = dist_init * D/ Y
+        dist_star = dist_init * D / Y
         # store the result as instance attributes
         self.m_star, self.stationary_dist = m_star, dist_star
     
@@ -339,7 +339,7 @@ class Hopenhayn1992:
         # number of firms
         total_mass = np.sum(self.stationary_dist)
         # diistribution of operating firms
-        dist_operating_firms = ((1 - self.x_star)*self.stationary_dist)
+        dist_operating_firms = (1 - self.x_star)*self.stationary_dist
         # number of operating firms
         operating_mass = np.sum(dist_operating_firms)
         # optimal output for each z
@@ -387,7 +387,7 @@ class Hopenhayn1992:
                     c = 'gray', lw = 0.5, label = '45 degree line')
             ax.plot(lorenz_curve_for_n[0], lorenz_curve_for_n[1],
                     c = '#7BA23F', marker = 'o', label= 'Lorenz curve')
-            ax.set_xlabel('Employment share')
+            ax.set_xlabel('Cumulative share of firms')
             ax.legend(frameon=False)
             plt.savefig('figQ1e.png', dpi = 100, bbox_inches='tight', pad_inches=0)
         # Store the stats as the instance attributes
@@ -575,7 +575,7 @@ def solve_question_2a(trans_mat, ce_values):
             ax[row, col].plot(ce_values, result_mat[idx, :],
                               c = '#7BA23F', marker = 'o')
             ax[row, col].set_title(titles[idx])
-            if idx >= 5:
+            if idx >= 4:
                 ax[row, col].set_xlabel('$c_e$')
     plt.savefig('figQ2a.png', dpi = 100, bbox_inches='tight', pad_inches=0)
 
@@ -614,7 +614,7 @@ def solve_question_2c(trans_mat, ce_values, N_star):
                 ax[row, col].plot(ce_values, result_mat[idx, :],
                                   c = '#7BA23F', marker = 'o')
                 ax[row, col].set_title(titles[idx])
-                if idx == 6:
+                if idx >= 5:
                     ax[row, col].set_xlabel('$c_e$')
     plt.savefig('figQ2c.png', dpi = 100, bbox_inches='tight', pad_inches=0)
                               
